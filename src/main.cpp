@@ -14,6 +14,7 @@
 #include <esp_display_panel.hpp>
 #include <lvgl.h>
 #include "lvgl_v8_port.h"
+#include <Wire.h>
 
 using namespace esp_panel::drivers;
 using namespace esp_panel::board;
@@ -594,6 +595,16 @@ void setup() {
 #endif
 #endif
   assert(board->begin());
+
+  // === Spegni LED rossi PWR/DONE (troppo luminosi) ===
+  // I LED sono controllati via CH422G a 0x55 (I2C bus su GPIO8/GPIO9)
+  // Registro output: bit 4 (PWR) e bit 5 (DONE)
+  Wire.begin(8, 9);  // SDA=GPIO8, SCL=GPIO9
+  Wire.beginTransmission(0x55);  // Indirizzo CH422G
+  Wire.write(0x01);  // Registro output
+  Wire.write(0x00);  // Tutti gli output a LOW (spegni LED)
+  Wire.endTransmission();
+  Serial.println("LED PWR/DONE spenti via CH422G (I2C 0x55)");
 
   Serial.println("Inizializzazione LVGL...");
   lvgl_port_init(board->getLCD(), board->getTouch());
