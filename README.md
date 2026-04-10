@@ -241,6 +241,35 @@ STATUS          # Mostra stato JSON
 
 Il firmware disabilita i LED via I2C (CH422G) al boot. Se rimangono accesi, copri con nastro opaco.
 
+## Future Enhancements (TODO)
+
+### Controllo Automatico con Sensore di Temperatura 🌡️
+
+**Proposta:** Aggiungere sensore DHT22 per implementare **logica AUTO termostato vera** (come il master originale).
+
+**Implementazione:**
+```cpp
+// Pseudocodice
+float temp_ambiente = readDHT22();
+if (powerOn && temp_ambiente >= (regTemp / 10.0)) {
+  setPower(false);  // Auto-spegni quando raggiunge target
+}
+```
+
+**Benefici:**
+- ✅ Controllo automatico della temperatura ambiente
+- ✅ Riduce consumi energetici
+- ✅ Termostato vero, non solo telecomando
+- ✅ Feature parity con master originale
+
+**Implementazione futura:**
+1. Aggiungere DHT22 su GPIO libero
+2. Leggere temperatura in `loop()`
+3. Implementare logica di auto-spegnimento quando raggiunge setpoint
+4. Aggiungere interfaccia UI per attivare/disattivare AUTO mode
+
+---
+
 ## Sviluppo
 
 ### Compilare il Firmware
