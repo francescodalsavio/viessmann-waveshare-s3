@@ -190,13 +190,13 @@ void setPower(bool on) {
   if (on) {
     // Comandi di accensione uguali al master originale
     regConfig = 0x4003;  // FREDDO MAX (bit14 + FAN MAX)
-    regTemp = 0x32;      // 5.0°C (come master)
+    // regTemp rimane quello impostato dall'utente (non forzare 0x32)
     regMode = 0xb9;      // Modo come master
     powerOn = true;
   } else {
     // Comandi di spegnimento uguali al master originale
     regConfig = 0x4083;  // FREDDO + STANDBY (bit14 + bit7)
-    regTemp = 0x32;      // 5.0°C (come master)
+    regTemp = 0x32;      // 5.0°C (come master quando spento)
     regMode = 0xb9;      // Modo come master
     powerOn = false;
   }
@@ -223,7 +223,7 @@ void setMode(bool heat) {
 
 void setTemperature(float temp) {
   if (temp < 5.0) temp = 5.0;
-  if (temp > 35.0) temp = 35.0;
+  if (temp > 40.0) temp = 40.0;  // Match master max (5-40°C range)
   regTemp = (uint16_t)(temp * 10);
   sendAllRegisters();
 }
