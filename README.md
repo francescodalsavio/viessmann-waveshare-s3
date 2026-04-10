@@ -114,38 +114,62 @@ bit1-0= FAN speed (00=off, 01=min, 10=auto, 11=max)
 
 ## Tabella Comandi — Codici Modbus
 
-### Comandi inviati dal nostro ESP (Touch Display)
+### Comandi inviati dal nostro ESP (Touch Display) — FULLY TESTED ✅
+
+**ON/OFF:**
 
 | Azione | REG 101 | REG 102 | REG 103 | Descrizione |
 |--------|---------|---------|---------|-------------|
-| **ACCENDI** | `0x4003` | `0x32` | `0xb9` | ✅ IDENTICO AL MASTER |
-| **SPEGNI** | `0x4083` | `0x32` | `0xb9` | ✅ IDENTICO AL MASTER |
-| **Keep-alive (ogni 68s)** | Stato attuale | `0x32` | `0xb9` | Rinvia periodicamente come master |
+| **ACCENDI** | `0x4003` | Mantiene valore utente | `0xb9` | FREDDO MAX con temp impostata |
+| **SPEGNI** | `0x4083` | `0x32` | `0xb9` | FREDDO + STANDBY, reset 5.0°C |
+| **Keep-alive (68s)** | Stato attuale | Valore attuale | `0xb9` | Rinvia periodicamente |
 
-### Comandi del Master Originale (Catturati)
+**CALDO/FREDDO:**
 
-| Azione | REG 101 | REG 102 | REG 103 | Note |
-|--------|---------|---------|---------|------|
-| **ACCENDI (ON)** | `0x4003` | `0x32` | `0xb9` | FREDDO MAX a 5.0°C |
-| **SPEGNI (OFF)** | `0x4083` | `0x32` | `0xb9` | FREDDO + STANDBY |
-| **Keep-alive (periodico)** | `0x4003` | `0x32` | `0xb9` | Inviato ogni ~68 secondi |
+| Modalità | REG 101 (FAN3) | bit14 | bit13 | Descrizione |
+|----------|---------|-------|-------|-------------|
+| **FREDDO** | `0x4003` | 1 | 0 | Modalità default |
+| **CALDO** | `0x2003` | 0 | 1 | Alterna bit14↔bit13 |
 
-### Reverse Engineering Notes
+**VENTOLA (FAN SPEED):**
 
-**Osservazioni importanti:**
-- Master invia **FREDDO** (bit14 acceso) come modalità di default
-- **ON vs OFF:** cambia solo REG 101:
-  - ON: `0x4003` (FREDDO MAX, bit1-0=11)
-  - OFF: `0x4083` (FREDDO STANDBY, bit7 acceso)
-- **REG 102 e REG 103 rimangono costanti** a `0x32` (5.0°C) e `0xb9`
-- **Keep-alive periodico:** il master rinvia lo stesso comando ogni ~68 secondi per mantenere lo stato
+| Velocità | Nome | REG 101 | bit1-0 | Descrizione |
+|----------|------|---------|--------|-------------|
+| **0** | OFF | `0x4000` | `00` | Ventola spenta |
+| **1** | MIN | `0x4001` | `01` | Minima velocità |
+| **2** | NIGHT/AUTO | `0x4002` | `10` | Modalità notturna |
+| **3** | MAX | `0x4003` | `11` | Massima velocità |
 
-**Test completati (Aprile 2026):**
-- ✅ Il nostro ESP manda **esattamente gli stessi comandi del master**
-- ✅ Quando premi ACCENDI: ventilconvettori si accendono
-- ✅ Quando premi SPEGNI: ventilconvettori si spengono
-- ✅ Keep-alive funzionante ogni 68 secondi
-- ✅ Control perfetto del sistema Viessmann
+**TEMPERATURA (TEMP +/-):**
+
+| Azione | REG 102 | Temperatura | Step | Range |
+|--------|---------|------------|------|-------|
+| Minimo | `0x32` | 5.0°C | - | Anticongelamento |
+| Incrementa (TEMP+) | +5 | +0.5°C | Ogni pressione | 5-40°C |
+| Decrementa (TEMP-) | -5 | -0.5°C | Ogni pressione | 5-40°C |
+| Massimo | `0x100` | 40.0°C | - | Limite superiore |
+| Esempio | `0xCD` | 20.5°C | - | 205 ÷ 10 = 20.5 |
+
+### Comandi del Master Originale (Catturati in reverse engineering)
+
+**Comportamento:**
+- Accende di default a **16.0°C** (salta da 5°C)
+- Incrementa/decrementa di **0.5°C** tra 16-28°C
+- Salta a **40°C** quando supera 28°C
+- Spegne con reset a **5.0°C**
+
+### Test Completati (Aprile 2026)
+
+**Status: ✅ PRODUZIONE READY**
+
+- ✅ ON/OFF — ventilconvettori rispondono perfettamente
+- ✅ CALDO/FREDDO — alterna modalità correttamente
+- ✅ FAN SPEED (0-3) — tutti i 4 livelli funzionano
+- ✅ TEMPERATURA (5-40°C) — incrementi di 0.5°C
+- ✅ Keep-alive ogni 68 secondi — mantiene stato
+- ✅ Registri sincronizzati con master originale
+- ✅ Display touch LVGL responsivo e funzionale
+- ✅ Pagine web /sniffer e /test operazionali
 
 ## Controllo
 
