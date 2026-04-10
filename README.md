@@ -43,6 +43,28 @@ L'S3 può funzionare con i 6V dal circuito dei ventilconvettori, ma è **forteme
 
 ## Firmware
 
+### Perché 3 Registri?
+
+Il ventilconvettore Viessmann ha **3 parametri indipendenti** che devono essere controllati insieme:
+
+1. **REG 101 — "Cosa fare?"**
+   - Accendi/Spegni
+   - Modalità (CALDO/FREDDO)
+   - Velocità ventola (0-3)
+   - Flag STANDBY (spegnimento)
+
+2. **REG 102 — "A quale temperatura?"**
+   - Temperatura desiderata in °C × 10
+   - Es: `0x00CD` = 20.5°C, `0x00E1` = 22.5°C
+
+3. **REG 103 — "In quale modalità?"**
+   - Modo stagionale / manuale
+   - Flag aggiuntivi di controllo
+
+**Perché non bastano 1-2 registri?** Se dici solo "accendi" senza specificare temperatura e modalità, il ventilconvettore non sa come comportarsi. Devono sempre arrivare insieme: "Accendi in CALDO a 22°C in modalità stagionale" = tutti e 3 i registri contemporaneamente.
+
+Il master originale fa così, e il nostro ESP fa lo stesso.
+
 ### Modalità di Funzionamento
 
 **Default (Broadcast addr=0x00):**
