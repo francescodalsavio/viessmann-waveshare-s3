@@ -119,13 +119,25 @@ bit1-0= FAN speed (00=off, 01=min, 10=auto, 11=max)
 
 | Azione | REG 101 | REG 102 | REG 103 | Note |
 |--------|---------|---------|---------|------|
-| **ACCENDI** | `0x4003` | `0xaa` | (non catturato) | FREDDO MAX |
-| **SPEGNI** | `0x4080` | `0xaf` | (non catturato) | FREDDO + STANDBY |
+| **ACCENDI (ON)** | `0x4003` | `0x32` | `0xb9` | FREDDO MAX a 5.0°C |
+| **SPEGNI (OFF)** | `0x4083` | `0x32` | `0xb9` | FREDDO + STANDBY |
+| **Keep-alive (periodico)** | `0x4003` | `0x32` | `0xb9` | Inviato ogni ~68 secondi |
 
 ### Reverse Engineering Notes
-- Master invia sempre **FREDDO** (bit14 acceso) — non abbiamo ancora catturato comandi di CALDO
-- REG 102 varia leggermente tra ON (`0xaa`) e OFF (`0xaf`) — potrebbe essere temperatura o stato
-- Per completare la tabella: prova a premere CALDO, FREDDO, FAN modes e TEMP+/- sul master
+
+**Osservazioni importanti:**
+- Master invia **FREDDO** (bit14 acceso) come modalità di default
+- **ON vs OFF:** cambia solo REG 101:
+  - ON: `0x4003` (FREDDO MAX, bit1-0=11)
+  - OFF: `0x4083` (FREDDO STANDBY, bit7 acceso)
+- **REG 102 e REG 103 rimangono costanti** a `0x32` (5.0°C) e `0xb9`
+- **Keep-alive periodico:** il master rinvia lo stesso comando ogni ~68 secondi per mantenere lo stato
+
+**Prossimi test:**
+- Premi CALDO sul master — cambiano i dati?
+- Premi FREDDO — cambiano?
+- Premi FAN 0, 1, 2, 3 — cambiano?
+- Premi TEMP + / TEMP - — cambia REG 102?
 
 ## Controllo
 
