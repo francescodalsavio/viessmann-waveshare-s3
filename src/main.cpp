@@ -38,11 +38,11 @@ const char* WIFI_PASS = "Fastweb10";
 #define SEND_INTERVAL  68000  // 68 sec (come master originale)
 
 // === Stato ventilconvettore ===
-uint16_t regConfig = 0x2003;  // caldo acceso, ventola MAX
+uint16_t regConfig = 0x4003;  // FREDDO MAX (come master originale) - bit14=FREDDO, bit1-0=FAN MAX
 uint16_t regTemp   = 0x00CD;  // 20.5C (x10)
-uint16_t regMode   = 0x008A;  // modo stagionale
-bool     powerOn   = true;
-bool     heating   = true;
+uint16_t regMode   = 0xb9;    // modo stagionale (identico al master originale)
+bool     powerOn   = true;    // acceso al boot
+bool     heating   = false;   // modalità FREDDO (non CALDO)
 
 // === Web Server ===
 WebServer webServer(80);
