@@ -5,8 +5,15 @@
  * Controllo via:
  *   1. Display touch LVGL 800x480
  *   2. API REST via WiFi (http://<ip>/api/...)
- *   3. Seriale USB (comandi testuali)
+ *   3. Web pages: /test (bottoni test) e /sniffer (ascolto passivo)
+ *   4. Seriale USB (comandi testuali)
+ *
+ * MODALITÀ SNIFFER:
+ *   Decommentare #define SNIFFER_MODE per attivare modalità ascolto passivo
+ *   Non invierà comandi, solo ascolterà il master originale
  */
+
+#define SNIFFER_MODE  // Decommentare per attivare modalità sniffer passivo
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -28,7 +35,7 @@ const char* WIFI_PASS = "Fastweb10";
 #define RS485_RX_PIN  43
 #define RS485          Serial1
 #define BAUD_RATE      9600
-#define SEND_INTERVAL  10000  // 10 sec
+#define SEND_INTERVAL  68000  // 68 sec (come master originale)
 
 // === Stato ventilconvettore ===
 uint16_t regConfig = 0x2003;  // caldo acceso, ventola MAX
@@ -39,6 +46,24 @@ bool     heating   = true;
 
 // === Web Server ===
 WebServer webServer(80);
+
+// === Sniffer Mode - Frame Capture Buffer ===
+#define SNIFFER_BUFFER_SIZE 100
+struct SniffedFrame {
+  uint32_t timestamp;
+  uint8_t addr;
+  uint8_t func;
+  uint16_t reg;
+  uint16_t val;
+  uint8_t lrc;
+  bool lrc_ok;
+};
+SniffedFrame sniffBuffer[SNIFFER_BUFFER_SIZE];
+int sniffIndex = 0;
+
+// === Sniffer Annotations (saved server-side) ===
+#include <map>
+std::map<String, String> sniffAnnotations;
 
 // === LVGL UI elements ===
 static lv_obj_t *label_temp;
@@ -67,6 +92,31 @@ uint8_t calculateLRC(uint8_t *data, int len) {
   return (uint8_t)(-(int8_t)lrc);
 }
 
+bool parseModbusFrame(const char* hexStr, SniffedFrame* frame) {
+  // Parsing frame ASCII: AAFFRRRRRRRRLLCC (6 bytes payload + lrc = 7 bytes total)
+  int len = strlen(hexStr);
+  if (len < 14) return false;
+
+  uint8_t data[7];
+  for (int i = 0; i < 7 && i*2 < len; i++) {
+    char hex[3] = {hexStr[i*2], hexStr[i*2+1], 0};
+    data[i] = (uint8_t)strtol(hex, NULL, 16);
+  }
+
+  frame->timestamp = millis();
+  frame->addr = data[0];
+  frame->func = data[1];
+  frame->reg = (data[2] << 8) | data[3];
+  frame->val = (data[4] << 8) | data[5];
+  frame->lrc = data[6];
+
+  // Verify LRC
+  uint8_t lrc_calc = calculateLRC(data, 6);
+  frame->lrc_ok = (frame->lrc == lrc_calc);
+
+  return true;
+}
+
 void modbusWriteRegister(uint8_t addr, uint16_t reg, uint16_t value) {
   uint8_t payload[6];
   payload[0] = addr;
@@ -92,11 +142,15 @@ void modbusWriteRegister(uint8_t addr, uint16_t reg, uint16_t value) {
 }
 
 void sendAllRegisters() {
+#ifdef SNIFFER_MODE
+  Serial.println(">>> [SNIFFER MODE] Invio disabilitato, ascolto passivo...");
+  return;
+#endif
   Serial.println(">>> Invio registri...");
-  modbusWriteRegister(0, 101, regConfig);
-  delay(200);
+  modbusWriteRegister(0, 101, regConfig);  // Broadcast (come il master originale)
+  delay(500);
   modbusWriteRegister(0, 102, regTemp);
-  delay(200);
+  delay(500);
   modbusWriteRegister(0, 103, regMode);
   Serial.printf("    101=0x%04X 102=0x%04X(%.1fC) 103=0x%04X OK\n",
                 regConfig, regTemp, regTemp / 10.0, regMode);
@@ -134,12 +188,16 @@ String statusJSON() {
 
 void setPower(bool on) {
   if (on) {
-    regConfig &= ~((1 << 14) | (1 << 13) | (1 << 7));
-    if (heating) regConfig |= (1 << 13);
-    else         regConfig |= (1 << 14);
+    // Comandi di accensione uguali al master originale
+    regConfig = 0x4003;  // FREDDO MAX (bit14 + FAN MAX)
+    regTemp = 0x32;      // 5.0°C (come master)
+    regMode = 0xb9;      // Modo come master
     powerOn = true;
   } else {
-    regConfig |= (1 << 7);
+    // Comandi di spegnimento uguali al master originale
+    regConfig = 0x4083;  // FREDDO + STANDBY (bit14 + bit7)
+    regTemp = 0x32;      // 5.0°C (come master)
+    regMode = 0xb9;      // Modo come master
     powerOn = false;
   }
   sendAllRegisters();
@@ -558,10 +616,120 @@ void processRxByte(char c) {
   else if (c == '\r') {}
   else if (c == '\n' && fActive) {
     frameBuf[fPos] = '\0';
-    if (fPos > 0) Serial.printf("[BUS] :%s\n", frameBuf);
+    if (fPos > 0) {
+      Serial.printf("[BUS] :%s\n", frameBuf);
+
+#ifdef SNIFFER_MODE
+      // Cattura il frame nel buffer
+      SniffedFrame frame;
+      if (parseModbusFrame(frameBuf, &frame)) {
+        sniffBuffer[sniffIndex % SNIFFER_BUFFER_SIZE] = frame;
+        sniffIndex++;
+      }
+#endif
+    }
     fActive = false; fPos = 0;
   }
   else if (fActive && fPos < MAX_FRAME_LEN - 1) { frameBuf[fPos++] = c; }
+}
+
+// ============================================================
+//  WEB PAGES - TEST & SNIFFER
+// ============================================================
+
+void handleTest() {
+  String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>";
+  html += "<title>VISLA TEST</title><style>";
+  html += "body{font-family:monospace;max-width:500px;margin:10px auto;padding:10px;background:#111;color:#0f0}";
+  html += "h2{color:#e94560}button{background:#333;color:#fff;border:1px solid #555;border-radius:6px;padding:10px 12px;font-size:0.9em;cursor:pointer;margin:3px}";
+  html += "button:active{background:#e94560}#log{background:#000;padding:10px;border-radius:6px;font-size:0.8em;max-height:200px;overflow-y:auto}";
+  html += "</style></head><body><h1 style='color:#e94560'>VISLA - Test Registri S3</h1><div id='log'>Premi un bottone...</div>";
+  html += "<h2>REG 101</h2>";
+  html += "<button onclick='r(101,0x4003)'>0x4003 FREDDO MAX</button>";
+  html += "<button onclick='r(101,0x2003)'>0x2003 CALDO MAX</button>";
+  html += "<button onclick='r(101,0x4083)'>0x4083 FREDDO OFF</button>";
+  html += "<h2>REG 102</h2>";
+  html += "<button onclick='r(102,0x00CD)'>20.5°C</button>";
+  html += "<button onclick='r(102,0x0032)'>5.0°C</button>";
+  html += "<h2>REG 103</h2>";
+  html += "<button onclick='r(103,0x008A)'>0x008A</button>";
+  html += "<h2>CUSTOM</h2><input id='reg' type='text' placeholder='101' style='width:60px;padding:5px'>";
+  html += "<input id='val' type='text' placeholder='0x4003' style='width:100px;padding:5px'>";
+  html += "<button onclick='sendCustom()'>INVIA</button>";
+  html += "<script>var logEl=document.getElementById('log');function log(t){logEl.innerHTML=t+'<br>'+logEl.innerHTML}";
+  html += "function r(reg,val){log('REG '+reg+' = 0x'+val.toString(16).toUpperCase()+'...');fetch('/api/reg?reg='+reg+'&val='+val).then(r=>r.json()).catch(e=>log('ERR:'+e))}";
+  html += "function sendCustom(){var reg=document.getElementById('reg').value;var val=document.getElementById('val').value;r(parseInt(reg),parseInt(val))}";
+  html += "</script></body></html>";
+  webServer.sendHeader("Access-Control-Allow-Origin", "*");
+  webServer.send(200, "text/html", html);
+}
+
+void handleSniffer() {
+#ifndef SNIFFER_MODE
+  webServer.send(403, "text/plain", "SNIFFER MODE non abilitato");
+  return;
+#endif
+  String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>";
+  html += "<meta http-equiv='refresh' content='1'><title>VISLA SNIFFER</title><style>";
+  html += "body{font-family:monospace;max-width:900px;margin:10px auto;padding:10px;background:#0a0a0a;color:#0f0}";
+  html += "h1{color:#0f0;border-bottom:2px solid #0f0;padding:10px}table{width:100%;border-collapse:collapse}";
+  html += "th{background:#1a1a1a;color:#0f0;padding:8px;text-align:left}td{padding:6px;border:1px solid #222}";
+  html += "tr:nth-child(odd){background:#151515}.info{background:#1a1a1a;padding:10px;border-radius:4px;margin:10px 0;color:#aaa}";
+  html += "</style></head><body><h1>VISLA SNIFFER S3</h1>";
+  html += "<div class='info'>Frame catturati: <strong>" + String(sniffIndex) + "</strong> / " + String(SNIFFER_BUFFER_SIZE) + "</div>";
+  html += "<button onclick='reset()' style='background:#e74c3c;color:white;padding:10px 20px;border:none;border-radius:6px;cursor:pointer'>RESET</button>";
+  html += "<table><tr><th>#</th><th>Data/Ora</th><th>Reg</th><th>Valore</th><th>Azione</th><th>LRC</th></tr>";
+
+  int start = max(0, sniffIndex - SNIFFER_BUFFER_SIZE);
+  for (int i = start; i < sniffIndex && i < start + SNIFFER_BUFFER_SIZE; i++) {
+    SniffedFrame& f = sniffBuffer[i % SNIFFER_BUFFER_SIZE];
+    String lrc = f.lrc_ok ? "OK" : "BAD";
+    String key = "act_" + String(i);
+    html += "<tr><td>" + String(i+1-start) + "</td><td class='dt' data-ms='" + String(f.timestamp) + "'>--:--:--</td>";
+    html += "<td><strong>" + String(f.reg) + "</strong></td><td><strong>0x" + String(f.val, HEX) + "</strong></td>";
+    html += "<td><select id='" + key + "' onchange='saveAction(this)' style='padding:4px;font-size:0.85em'>";
+    html += "<option value=''>--</option><option value='Accendi'>Accendi</option><option value='Spegni'>Spegni</option>";
+    html += "<option value='Temp+'>Temp+</option><option value='Temp-'>Temp-</option></select></td>";
+    html += "<td>" + lrc + "</td></tr>";
+  }
+
+  html += "</table><script>";
+  html += "var pageLoadTime=Date.now();function formatDT(ms){let rows=document.querySelectorAll('tr');if(rows.length<2)return 'xx:xx:xx';";
+  html += "let firstMs=parseInt(rows[1].querySelector('.dt').getAttribute('data-ms'));let offset=pageLoadTime-firstMs;";
+  html += "let d=new Date(offset+ms);let h=String(d.getHours()).padStart(2,'0');let m=String(d.getMinutes()).padStart(2,'0');";
+  html += "let s=String(d.getSeconds()).padStart(2,'0');return h+':'+m+':'+s}";
+  html += "function saveAction(sel){sessionStorage.setItem(sel.id,sel.value)}function restoreActions(){";
+  html += "document.querySelectorAll('select').forEach(sel=>{let val=sessionStorage.getItem(sel.id);if(val)sel.value=val})}";
+  html += "document.querySelectorAll('.dt').forEach(el=>{el.textContent=formatDT(parseInt(el.getAttribute('data-ms')))});";
+  html += "restoreActions();function reset(){if(confirm('Reset buffer?')){fetch('/api/reset-sniffer').then(()=>location.reload())}}";
+  html += "</script></body></html>";
+  webServer.sendHeader("Access-Control-Allow-Origin", "*");
+  webServer.send(200, "text/html", html);
+}
+
+void handleResetSniffer() {
+#ifdef SNIFFER_MODE
+  sniffIndex = 0;
+  memset(sniffBuffer, 0, sizeof(sniffBuffer));
+  webServer.send(200, "application/json", "{\"status\":\"reset\"}");
+  Serial.println(">>> Sniffer buffer reset!");
+#else
+  webServer.send(403, "text/plain", "SNIFFER MODE non abilitato");
+#endif
+}
+
+void handleApiReg() {
+  if (!webServer.hasArg("reg") || !webServer.hasArg("val")) {
+    webServer.send(400, "text/plain", "manca reg o val");
+    return;
+  }
+  int reg = webServer.arg("reg").toInt();
+  uint16_t val = (uint16_t)strtol(webServer.arg("val").c_str(), NULL, 0);
+  if (reg == 101) regConfig = val;
+  else if (reg == 103) regMode = val;
+  modbusWriteRegister(0, reg, val);
+  delay(200);
+  webServer.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 // ============================================================
@@ -641,6 +809,10 @@ void setup() {
     webServer.on("/api/power", handleApiPower);
     webServer.on("/api/fan", handleApiFan);
     webServer.on("/api/mode", handleApiMode);
+    webServer.on("/api/reg", HTTP_GET, handleApiReg);
+    webServer.on("/test", handleTest);
+    webServer.on("/sniffer", handleSniffer);
+    webServer.on("/api/reset-sniffer", HTTP_GET, handleResetSniffer);
     webServer.begin();
     Serial.println("Web server avviato sulla porta 80");
 
@@ -691,8 +863,8 @@ void loop() {
     processRxByte((char)(raw & 0x7F));
   }
 
-  // Invio periodico
-  if (powerOn && millis() - lastSend >= SEND_INTERVAL) {
+  // Invio periodico (keep-alive ogni 68 sec, anche quando spento - come master)
+  if (millis() - lastSend >= SEND_INTERVAL) {
     lastSend = millis();
     sendAllRegisters();
   }
