@@ -42,10 +42,11 @@ public:
 
   void execute(float temperature) {
     // Validazione (business logic pura)
-    if (temperature < 5.0f) temperature = 5.0f;
-    if (temperature > 24.0f) temperature = 24.0f;
+    if (temperature < 5.0f) temperature = 5.0f;      // Min: 0x32 (0000 0000 0011 0010)
+    if (temperature > 24.0f) temperature = 24.0f;    // Max: 0xF0 (0000 0000 1111 0000)
 
-    // Calcola registro
+    // Calcola registro (formula: Celsius × 10 = hex value)
+    // Es: 22.5°C × 10 = 225 = 0xE1 (1110 0001)
     uint16_t regValue = (uint16_t)(temperature * 10);
 
     // Persisti tramite interface
@@ -78,9 +79,9 @@ public:
       : model(m), repository(r), logger(l) {}
 
   void executePowerOn() {
-    uint16_t regConfig = 0x4003;  // FREDDO MAX
-    uint16_t regTemp = 0x00CD;    // 20.5°C
-    uint16_t regMode = 0xb9;
+    uint16_t regConfig = 0x4003;  // 0100 0000 0000 0011 — FREDDO MAX + ON
+    uint16_t regTemp = 0x00CD;    // 0000 0000 1100 1101 — 20.5°C
+    uint16_t regMode = 0xb9;      // 1011 1001 — Seasonal mode
 
     Result<void> result = repository.sendAllRegisters(regConfig, regTemp, regMode);
     if (logger) {
@@ -93,9 +94,9 @@ public:
   }
 
   void executePowerOff() {
-    uint16_t regConfig = 0x4083;  // FREDDO + STANDBY
-    uint16_t regTemp = 0x32;      // 5.0°C
-    uint16_t regMode = 0xb9;
+    uint16_t regConfig = 0x4083;  // 0100 0000 1000 0011 — FREDDO + STANDBY
+    uint16_t regTemp = 0x32;      // 0000 0000 0011 0010 — 5.0°C (reset)
+    uint16_t regMode = 0xb9;      // 1011 1001 — Seasonal mode
 
     Result<void> result = repository.sendAllRegisters(regConfig, regTemp, regMode);
     if (logger) {
@@ -122,8 +123,10 @@ public:
 
   void executeHeating(uint16_t currentRegConfig) {
     uint16_t regConfig = currentRegConfig;
-    regConfig &= ~(1 << 14);  // Spegni FREDDO
-    regConfig |= (1 << 13);   // Accendi CALDO
+    // Flip bit14(FREDDO)=0, bit13(CALDO)=1
+    // Risultato: 0x2003 (0010 0000 0000 0011)
+    regConfig &= ~(1 << 14);  // Spegni bit 14 (FREDDO)
+    regConfig |= (1 << 13);   // Accendi bit 13 (CALDO)
 
     Result<void> result = repository.sendRegister(101, regConfig);
     if (logger) {
@@ -137,8 +140,10 @@ public:
 
   void executeCooling(uint16_t currentRegConfig) {
     uint16_t regConfig = currentRegConfig;
-    regConfig &= ~(1 << 13);  // Spegni CALDO
-    regConfig |= (1 << 14);   // Accendi FREDDO
+    // Flip bit13(CALDO)=0, bit14(FREDDO)=1
+    // Risultato: 0x4003 (0100 0000 0000 0011)
+    regConfig &= ~(1 << 13);  // Spegni bit 13 (CALDO)
+    regConfig |= (1 << 14);   // Accendi bit 14 (FREDDO)
 
     Result<void> result = repository.sendRegister(101, regConfig);
     if (logger) {
@@ -164,6 +169,7 @@ public:
       : model(m), repository(r), logger(l) {}
 
   void execute(int speed, uint16_t currentRegConfig) {
+    // Speed: 0=OFF(00), 1=MIN(01), 2=AUTO(10), 3=MAX(11)
     if (speed < 0 || speed > 3) {
       if (logger) {
         logger->error("[UC] Invalid fan speed");
@@ -172,6 +178,8 @@ public:
     }
 
     uint16_t regConfig = currentRegConfig;
+    // Modifica bit1-0 (FAN speed), mantieni resto
+    // Es: speed=3 → regConfig |= 0b11 → 0x4003 (0100 0000 0000 0011)
     regConfig = (regConfig & ~0x03) | (speed & 0x03);
 
     Result<void> result = repository.sendRegister(101, regConfig);
