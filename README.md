@@ -75,6 +75,36 @@ bit1-0= FAN speed (00=off, 01=min, 10=auto, 11=max)
 - `0x4003` = FREDDO + FAN MAX (acceso)
 - `0x4083` = FREDDO + STANDBY (spento)
 
+## Tabella Comandi — Codici Modbus
+
+### Comandi inviati dal nostro ESP (Touch Display)
+
+| Azione | REG 101 | REG 102 | REG 103 | Descrizione |
+|--------|---------|---------|---------|-------------|
+| **ACCENDI CALDO** | `0x2003` | `0x00CD` | `0x008A` | bit13=HEAT, FAN MAX |
+| **ACCENDI FREDDO** | `0x4003` | `0x00CD` | `0x008A` | bit14=COLD, FAN MAX |
+| **SPEGNI** | `0x2083`/`0x4083` | (stesso) | (stesso) | bit7=STANDBY |
+| **MODALITÀ CALDO** | `0x2003` | (stesso) | `0x008A` \| 0x02 | bit13 acceso |
+| **MODALITÀ FREDDO** | `0x4003` | (stesso) | `0x008A` & ~0x02 | bit14 acceso |
+| **VENTOLA 0 (OFF)** | `0x2000` | (stesso) | (stesso) | bit1-0 = 00 |
+| **VENTOLA 1 (MIN)** | `0x2001` | (stesso) | (stesso) | bit1-0 = 01 |
+| **VENTOLA 2 (AUTO)** | `0x2002` | (stesso) | (stesso) | bit1-0 = 10 |
+| **VENTOLA 3 (MAX)** | `0x2003` | (stesso) | (stesso) | bit1-0 = 11 |
+| **TEMP +0.5°C** | (stesso) | +50 | (stesso) | Es: 0x00CD → 0x00D2 |
+| **TEMP -0.5°C** | (stesso) | -50 | (stesso) | Es: 0x00CD → 0x00C8 |
+
+### Comandi del Master Originale (Catturati)
+
+| Azione | REG 101 | REG 102 | REG 103 | Note |
+|--------|---------|---------|---------|------|
+| **ACCENDI** | `0x4003` | `0xaa` | (non catturato) | FREDDO MAX |
+| **SPEGNI** | `0x4080` | `0xaf` | (non catturato) | FREDDO + STANDBY |
+
+### Reverse Engineering Notes
+- Master invia sempre **FREDDO** (bit14 acceso) — non abbiamo ancora catturato comandi di CALDO
+- REG 102 varia leggermente tra ON (`0xaa`) e OFF (`0xaf`) — potrebbe essere temperatura o stato
+- Per completare la tabella: prova a premere CALDO, FREDDO, FAN modes e TEMP+/- sul master
+
 ## Controllo
 
 ### Web API (HTTP)
