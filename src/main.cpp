@@ -23,6 +23,8 @@
 #include <lvgl.h>
 #include "lvgl_v8_port.h"
 #include <Wire.h>
+#include <nvs_flash.h>
+#include <nvs.h>
 
 using namespace esp_panel::drivers;
 using namespace esp_panel::board;
@@ -38,9 +40,15 @@ const char* WIFI_PASS = "Fastweb10";
 #define BAUD_RATE         9600
 #define SEND_INTERVAL     68000  // 68 sec (come master originale)
 
-// === MODBUS RETRY CONFIGURATION ===
-#define MODBUS_RETRIES    10     // Numero di ripetizioni per registro
-#define MODBUS_RETRY_DELAY 50    // Delay tra ripetizioni (ms)
+// === MODBUS RETRY CONFIGURATION (impostabili dai settings) ===
+uint32_t modbusRetries = 6;        // Numero di ripetizioni per registro
+uint32_t modbusRetryDelay = 100;   // Delay tra ripetizioni (ms)
+
+// === DISPLAY SLEEP CONFIGURATION ===
+uint32_t displaySleepTimeout = 180000;  // 3 minuti (ms) - impostabile dai settings
+uint32_t lastTouchTime = 0;
+bool displayAwake = true;
+Board *boardPtr = nullptr;
 
 // === Stato ventilconvettore ===
 uint16_t regConfig = 0x4003;  // FREDDO MAX (come master originale) - bit14=FREDDO, bit1-0=FAN MAX
@@ -93,6 +101,15 @@ static lv_obj_t *btn_heat, *btn_cool;
 static lv_obj_t *btn_fan[4];
 static lv_obj_t *label_status;
 static lv_obj_t *label_wifi;
+
+// === Settings Modal elements ===
+static lv_obj_t *modal_settings = nullptr;
+static lv_obj_t *spinner_retries = nullptr;
+static lv_obj_t *spinner_delay = nullptr;
+static lv_obj_t *spinner_sleep = nullptr;
+static lv_obj_t *lbl_val_retries = nullptr;
+static lv_obj_t *lbl_val_delay = nullptr;
+static lv_obj_t *lbl_val_sleep = nullptr;
 
 // === Colori LVGL ===
 #define COLOR_BG       lv_color_hex(0x1a1a2e)
@@ -173,30 +190,30 @@ void sendAllRegisters() {
   Serial.println(">>> [SNIFFER MODE] Invio disabilitato, ascolto passivo...");
   return;
 #endif
-  Serial.printf(">>> Invio registri (x%d con delay %dms)...\n", MODBUS_RETRIES, MODBUS_RETRY_DELAY);
+  Serial.printf(">>> Invio registri (x%d con delay %dms)...\n", modbusRetries, modbusRetryDelay);
 
-  // REG 101 - invia MODBUS_RETRIES volte
-  for (int i = 0; i < MODBUS_RETRIES; i++) {
+  // REG 101 - invia modbusRetries volte
+  for (int i = 0; i < modbusRetries; i++) {
     modbusWriteRegister(0, 101, regConfig);
-    delay(MODBUS_RETRY_DELAY);
+    delay(modbusRetryDelay);
   }
   delay(1160);
 
-  // REG 102 - invia MODBUS_RETRIES volte
-  for (int i = 0; i < MODBUS_RETRIES; i++) {
+  // REG 102 - invia modbusRetries volte
+  for (int i = 0; i < modbusRetries; i++) {
     modbusWriteRegister(0, 102, regTemp);
-    delay(MODBUS_RETRY_DELAY);
+    delay(modbusRetryDelay);
   }
   delay(1160);
 
-  // REG 103 - invia MODBUS_RETRIES volte
-  for (int i = 0; i < MODBUS_RETRIES; i++) {
+  // REG 103 - invia modbusRetries volte
+  for (int i = 0; i < modbusRetries; i++) {
     modbusWriteRegister(0, 103, regMode);
-    delay(MODBUS_RETRY_DELAY);
+    delay(modbusRetryDelay);
   }
 
   Serial.printf("    101=0x%04X 102=0x%04X(%.1fC) 103=0x%04X OK (sent x%d)\n",
-                regConfig, regTemp, regTemp / 10.0, regMode, MODBUS_RETRIES);
+                regConfig, regTemp, regTemp / 10.0, regMode, modbusRetries);
 }
 
 // === Helper ===
@@ -328,6 +345,64 @@ void setTemperature(float temp) {
 void updateUI();
 
 // ============================================================
+//  NVS (Non-Volatile Storage) — Salvataggio impostazioni
+// ============================================================
+
+void loadSettings() {
+  nvs_flash_init();
+  nvs_handle_t handle;
+  esp_err_t err = nvs_open("settings", NVS_READONLY, &handle);
+
+  if (err == ESP_OK) {
+    nvs_get_u32(handle, "modbus_retries", &modbusRetries);
+    nvs_get_u32(handle, "modbus_delay", &modbusRetryDelay);
+    nvs_get_u32(handle, "display_sleep", &displaySleepTimeout);
+    nvs_close(handle);
+    Serial.printf("[NVS] Impostazioni caricate: retries=%d, delay=%dms, sleep=%dms\n",
+                  modbusRetries, modbusRetryDelay, displaySleepTimeout);
+  } else {
+    Serial.println("[NVS] Nessuna impostazione salvata, uso defaults");
+  }
+}
+
+void saveSettings() {
+  nvs_handle_t handle;
+  esp_err_t err = nvs_open("settings", NVS_READWRITE, &handle);
+
+  if (err == ESP_OK) {
+    nvs_set_u32(handle, "modbus_retries", modbusRetries);
+    nvs_set_u32(handle, "modbus_delay", modbusRetryDelay);
+    nvs_set_u32(handle, "display_sleep", displaySleepTimeout);
+    nvs_commit(handle);
+    nvs_close(handle);
+    Serial.println("[NVS] Impostazioni salvate!");
+  } else {
+    Serial.println("[NVS] Errore nel salvataggio");
+  }
+}
+
+void displayWakeup() {
+  lastTouchTime = millis();
+  if (!displayAwake) {
+    if (boardPtr && boardPtr->getBacklight()) {
+      boardPtr->getBacklight()->setBrightness(100);
+    }
+    displayAwake = true;
+    Serial.println("[DISPLAY] ✅ Acceso - Backlight ON");
+  }
+}
+
+void displaySleep() {
+  if (displayAwake) {
+    if (boardPtr && boardPtr->getBacklight()) {
+      boardPtr->getBacklight()->setBrightness(0);
+    }
+    displayAwake = false;
+    Serial.println("[DISPLAY] ❌ Spento - Backlight OFF");
+  }
+}
+
+// ============================================================
 //  LVGL UI — Touch interface
 // ============================================================
 
@@ -395,6 +470,176 @@ static void cb_fan(lv_event_t *e) {
   updateUI();
 }
 
+// Forward declarations
+static lv_obj_t* make_btn(lv_obj_t *parent, const char *text, lv_event_cb_t cb, void *user_data);
+
+// === Global touch callback for display wakeup ===
+static void cb_global_touch(lv_event_t *e) {
+  Serial.printf("[TOUCH] Evento rilevato! displayAwake=%d\n", displayAwake);
+  // Solo resetta il timer se il display era spento
+  if (!displayAwake) {
+    displayWakeup();
+  }
+}
+
+// === Bulb/Light toggle callback ===
+// === Settings Modal Callbacks ===
+
+static void cb_settings_ok(lv_event_t *e) {
+  modbusRetries = lv_slider_get_value(spinner_retries);                    // 1-10
+  modbusRetryDelay = lv_slider_get_value(spinner_delay) * 50;              // 0-20 * 50 = 0-1000ms
+  displaySleepTimeout = lv_slider_get_value(spinner_sleep) * 30000;        // 1-20 * 30s = 30s-600s
+  lastTouchTime = millis();  // Resetta il timer dopo il salvataggio
+
+  saveSettings();
+  Serial.printf("[SETTINGS] Salvate: retries=%d, delay=%dms, sleep=%dms (%ds)\n",
+                modbusRetries, modbusRetryDelay, displaySleepTimeout, displaySleepTimeout/1000);
+  Serial.printf("[DISPLAY] Timer resettato, prossimo timeout tra %dms\n", displaySleepTimeout);
+
+  // Chiudi modale
+  lv_obj_del(modal_settings);
+  modal_settings = nullptr;
+}
+
+static void cb_settings_cancel(lv_event_t *e) {
+  lv_obj_del(modal_settings);
+  modal_settings = nullptr;
+}
+
+static void cb_slider_retries(lv_event_t *e) {
+  int val = lv_slider_get_value(spinner_retries);
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%d", val);
+  lv_label_set_text(lbl_val_retries, buf);
+}
+
+static void cb_slider_delay(lv_event_t *e) {
+  int val = lv_slider_get_value(spinner_delay) * 50;
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%dms", val);
+  lv_label_set_text(lbl_val_delay, buf);
+}
+
+static void cb_slider_sleep(lv_event_t *e) {
+  int val = lv_slider_get_value(spinner_sleep) * 30;
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%ds", val);
+  lv_label_set_text(lbl_val_sleep, buf);
+}
+
+static void cb_settings_open(lv_event_t *e) {
+  if (modal_settings) return;  // Già aperta
+
+  // Modale (finestra 520x460)
+  modal_settings = lv_obj_create(lv_scr_act());
+  lv_obj_set_size(modal_settings, 520, 460);
+  lv_obj_center(modal_settings);
+  lv_obj_set_style_bg_color(modal_settings, COLOR_CARD, 0);
+  lv_obj_set_style_radius(modal_settings, 12, 0);
+  lv_obj_set_style_pad_all(modal_settings, 15, 0);
+  lv_obj_set_style_text_color(modal_settings, lv_color_white(), 0);
+  lv_obj_set_flex_flow(modal_settings, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_row(modal_settings, 8, 0);
+  lv_obj_set_scrollbar_mode(modal_settings, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_clear_flag(modal_settings, LV_OBJ_FLAG_SCROLLABLE);
+
+  // Titolo
+  lv_obj_t *title = lv_label_create(modal_settings);
+  lv_label_set_text(title, LV_SYMBOL_SETTINGS " Impostazioni");
+  lv_obj_set_style_text_color(title, COLOR_ACCENT, 0);
+  lv_obj_set_style_text_font(title, &lv_font_montserrat_20, 0);
+
+  // === MODBUS Retries ===
+  lv_obj_t *row_ret = lv_obj_create(modal_settings);
+  lv_obj_set_size(row_ret, 480, 50);
+  lv_obj_set_style_bg_opa(row_ret, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(row_ret, 0, 0);
+  lv_obj_set_flex_flow(row_ret, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(row_ret, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_clear_flag(row_ret, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t *lbl1 = lv_label_create(row_ret);
+  lv_label_set_text(lbl1, "Tentativi:");
+  lv_obj_set_style_text_color(lbl1, lv_color_white(), 0);
+
+  lbl_val_retries = lv_label_create(row_ret);
+  char buf_ret[16];
+  snprintf(buf_ret, sizeof(buf_ret), "%d", modbusRetries);
+  lv_label_set_text(lbl_val_retries, buf_ret);
+  lv_obj_set_style_text_color(lbl_val_retries, COLOR_ACCENT, 0);
+
+  spinner_retries = lv_slider_create(modal_settings);
+  lv_slider_set_range(spinner_retries, 1, 10);
+  lv_slider_set_value(spinner_retries, modbusRetries, LV_ANIM_OFF);
+  lv_obj_set_width(spinner_retries, 480);
+  lv_obj_set_style_bg_color(spinner_retries, COLOR_ACCENT, LV_PART_INDICATOR);
+  lv_obj_add_event_cb(spinner_retries, cb_slider_retries, LV_EVENT_VALUE_CHANGED, NULL);
+
+  // === MODBUS Delay ===
+  lv_obj_t *row_del = lv_obj_create(modal_settings);
+  lv_obj_set_size(row_del, 480, 50);
+  lv_obj_set_style_bg_opa(row_del, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(row_del, 0, 0);
+  lv_obj_set_flex_flow(row_del, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(row_del, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_clear_flag(row_del, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t *lbl2 = lv_label_create(row_del);
+  lv_label_set_text(lbl2, "Delay:");
+  lv_obj_set_style_text_color(lbl2, lv_color_white(), 0);
+
+  lbl_val_delay = lv_label_create(row_del);
+  char buf_del[16];
+  snprintf(buf_del, sizeof(buf_del), "%dms", modbusRetryDelay);
+  lv_label_set_text(lbl_val_delay, buf_del);
+  lv_obj_set_style_text_color(lbl_val_delay, COLOR_ACCENT, 0);
+
+  spinner_delay = lv_slider_create(modal_settings);
+  lv_slider_set_range(spinner_delay, 0, 20);  // 0-1000 step 50 = 0-20
+  lv_slider_set_value(spinner_delay, modbusRetryDelay / 50, LV_ANIM_OFF);
+  lv_obj_set_width(spinner_delay, 480);
+  lv_obj_set_style_bg_color(spinner_delay, COLOR_ACCENT, LV_PART_INDICATOR);
+  lv_obj_add_event_cb(spinner_delay, cb_slider_delay, LV_EVENT_VALUE_CHANGED, NULL);
+
+  // === Display Sleep ===
+  lv_obj_t *row_slp = lv_obj_create(modal_settings);
+  lv_obj_set_size(row_slp, 480, 50);
+  lv_obj_set_style_bg_opa(row_slp, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(row_slp, 0, 0);
+  lv_obj_set_flex_flow(row_slp, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(row_slp, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_clear_flag(row_slp, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t *lbl3 = lv_label_create(row_slp);
+  lv_label_set_text(lbl3, "Sleep:");
+  lv_obj_set_style_text_color(lbl3, lv_color_white(), 0);
+
+  lbl_val_sleep = lv_label_create(row_slp);
+  char buf_slp[16];
+  snprintf(buf_slp, sizeof(buf_slp), "%ds", displaySleepTimeout / 1000);
+  lv_label_set_text(lbl_val_sleep, buf_slp);
+  lv_obj_set_style_text_color(lbl_val_sleep, COLOR_ACCENT, 0);
+
+  spinner_sleep = lv_slider_create(modal_settings);
+  lv_slider_set_range(spinner_sleep, 1, 20);  // 30-600 sec step 30 = 1-20
+  lv_slider_set_value(spinner_sleep, displaySleepTimeout / 30000, LV_ANIM_OFF);  // Converto da ms a step di 30s
+  lv_obj_set_width(spinner_sleep, 480);
+  lv_obj_set_style_bg_color(spinner_sleep, COLOR_ACCENT, LV_PART_INDICATOR);
+  lv_obj_add_event_cb(spinner_sleep, cb_slider_sleep, LV_EVENT_VALUE_CHANGED, NULL);
+
+  // Bottoni
+  lv_obj_t *btn_row = lv_obj_create(modal_settings);
+  lv_obj_set_size(btn_row, 480, 80);
+  lv_obj_set_style_bg_opa(btn_row, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(btn_row, 0, 0);
+  lv_obj_set_flex_flow(btn_row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_style_pad_column(btn_row, 10, 0);
+  lv_obj_clear_flag(btn_row, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t *btn_ok = make_btn(btn_row, "OK", cb_settings_ok, NULL);
+  lv_obj_t *btn_cancel = make_btn(btn_row, "Annulla", cb_settings_cancel, NULL);
+}
+
 // --- Build UI ---
 
 static lv_obj_t* make_btn(lv_obj_t *parent, const char *text, lv_event_cb_t cb, void *user_data) {
@@ -416,6 +661,10 @@ void buildUI() {
   // Background
   lv_obj_set_style_bg_color(lv_scr_act(), COLOR_BG, 0);
 
+  // Global touch handler (display wakeup) - deve essere clickable per rilevare tocchi
+  lv_obj_add_flag(lv_scr_act(), LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(lv_scr_act(), cb_global_touch, LV_EVENT_PRESSED, NULL);
+
   // Main container — 2 columns
   lv_obj_t *main_cont = lv_obj_create(lv_scr_act());
   lv_obj_set_size(main_cont, 780, 460);
@@ -426,6 +675,23 @@ void buildUI() {
   lv_obj_set_flex_flow(main_cont, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(main_cont, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
   lv_obj_set_style_pad_column(main_cont, 15, 0);
+
+  // Anche il main container deve essere clickable e avere la callback di wakeup
+  lv_obj_add_flag(main_cont, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(main_cont, cb_global_touch, LV_EVENT_PRESSED, NULL);
+
+  // === Settings button (bottom right) ===
+  lv_obj_t *btn_settings = lv_btn_create(lv_scr_act());
+  lv_obj_set_size(btn_settings, 60, 60);
+  lv_obj_align(btn_settings, LV_ALIGN_BOTTOM_RIGHT, -15, -15);
+  lv_obj_set_style_radius(btn_settings, 30, 0);
+  lv_obj_set_style_bg_color(btn_settings, COLOR_ACCENT, 0);
+  lv_obj_add_event_cb(btn_settings, cb_settings_open, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t *lbl_settings = lv_label_create(btn_settings);
+  lv_label_set_text(lbl_settings, LV_SYMBOL_SETTINGS);
+  lv_obj_set_style_text_font(lbl_settings, &lv_font_montserrat_20, 0);
+  lv_obj_center(lbl_settings);
 
   // === LEFT column: Temperature ===
   lv_obj_t *col_left = lv_obj_create(main_cont);
@@ -1119,19 +1385,14 @@ void setup() {
 #endif
 #endif
   assert(board->begin());
-
-  // === Spegni LED rossi PWR/DONE (troppo luminosi) ===
-  // I LED sono controllati via CH422G a 0x55 (I2C bus su GPIO8/GPIO9)
-  // Registro output: bit 4 (PWR) e bit 5 (DONE)
-  Wire.begin(8, 9);  // SDA=GPIO8, SCL=GPIO9
-  Wire.beginTransmission(0x55);  // Indirizzo CH422G
-  Wire.write(0x01);  // Registro output
-  Wire.write(0x00);  // Tutti gli output a LOW (spegni LED)
-  Wire.endTransmission();
-  Serial.println("LED PWR/DONE spenti via CH422G (I2C 0x55)");
+  boardPtr = board;  // Salva per il controllo del display sleep
 
   Serial.println("Inizializzazione LVGL...");
   lvgl_port_init(board->getLCD(), board->getTouch());
+
+  // Carica impostazioni da NVS
+  loadSettings();
+  lastTouchTime = millis();
 
   lvgl_port_lock(-1);
   buildUI();
@@ -1262,6 +1523,30 @@ void loop() {
   if (millis() - lastSend >= SEND_INTERVAL) {
     lastSend = millis();
     sendAllRegisters();
+  }
+
+  // Display sleep timeout
+  static uint32_t lastDisplayLog = 0;
+  if (displayAwake) {
+    uint32_t elapsedTime = millis() - lastTouchTime;
+    if (millis() - lastDisplayLog > 5000) {  // Log ogni 5 secondi
+      Serial.printf("[DISPLAY] Elapsed: %ldms / %ldms (awake=%d)\n", elapsedTime, displaySleepTimeout, displayAwake);
+      lastDisplayLog = millis();
+    }
+    if (elapsedTime >= displaySleepTimeout) {
+      Serial.printf("[DISPLAY] ⚠️ TIMEOUT RAGGIUNTO! %ldms >= %ldms\n", elapsedTime, displaySleepTimeout);
+      displaySleep();
+    }
+  } else {
+    // Display è spento - controlla il tocco direttamente dal controller per riattivare
+    if (boardPtr && boardPtr->getTouch()) {
+      TouchPoint points[5];
+      int num_points = boardPtr->getTouch()->getPoints(points, 5);
+      if (num_points > 0) {
+        Serial.printf("[TOUCH] Rilevato tocco mentre display spento (%d punti) - WAKEUP!\n", num_points);
+        displayWakeup();
+      }
+    }
   }
 
   delay(5);  // yield for LVGL task
