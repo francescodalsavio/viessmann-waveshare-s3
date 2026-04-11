@@ -35,7 +35,7 @@ const char* WIFI_SSID = "Molinella";
 const char* WIFI_PASS = "Fastweb10";
 
 // === MQTT Config ===
-const char* MQTT_SERVER = "192.168.1.86";
+const char* MQTT_SERVER = "192.168.0.86";
 const uint16_t MQTT_PORT = 1883;
 const char* MQTT_USER = "";     // Vuoto se no auth
 const char* MQTT_PASS = "";     // Vuoto se no auth
