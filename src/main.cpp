@@ -430,41 +430,67 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     msg += (char)payload[i];
   }
 
-  Serial.printf("[MQTT] Ricevuto su %s: %s\n", topic, msg.c_str());
+  Serial.printf("[MQTT] ✅ Ricevuto su %s: %s (retry x%d)\n", topic, msg.c_str(), modbusRetries);
 
   if (strcmp(topic, TOPIC_POWER) == 0) {
     if (msg == "ON") {
-      regConfig = 0x4003;  // Freddo max
+      setPower(true);
       Serial.println("[MQTT] → Power ON");
     } else if (msg == "OFF") {
-      regConfig &= ~(1 << 15);  // Spegni il bit 15
+      setPower(false);
       Serial.println("[MQTT] → Power OFF");
     }
-    sendAllRegisters();
+    if (lvgl_port_lock(100)) {
+      updateUI();
+      lvgl_port_unlock();
+    }
   }
   else if (strcmp(topic, TOPIC_TEMP) == 0) {
     float temp = msg.toFloat();
     if (temp >= 16 && temp <= 30) {
       setTemperature(temp);
       Serial.printf("[MQTT] → Temperatura: %.1f°C\n", temp);
+      if (lvgl_port_lock(100)) {
+        updateUI();
+        lvgl_port_unlock();
+      }
     }
   }
   else if (strcmp(topic, TOPIC_FAN) == 0) {
-    int fan = msg.toInt();
+    int fan = -1;
+    msg.toLowerCase();
+    if (msg == "auto" || msg == "0") fan = 0;
+    else if (msg == "minimo" || msg == "min" || msg == "1") fan = 1;
+    else if (msg == "night" || msg == "notturno" || msg == "2") fan = 2;
+    else if (msg == "massimo" || msg == "max" || msg == "3") fan = 3;
+    else fan = msg.toInt();  // fallback numerico
     if (fan >= 0 && fan <= 3) {
-      regConfig = (regConfig & 0xFFFC) | fan;  // Cambia solo i bit 0-1
-      Serial.printf("[MQTT] → Fan: %d\n", fan);
-      sendAllRegisters();
+      setFanSpeed(fan);
+      Serial.printf("[MQTT] → Fan: %s (%d)\n", msg.c_str(), fan);
+      if (lvgl_port_lock(100)) {
+        updateUI();
+        lvgl_port_unlock();
+      }
     }
   }
   else if (strcmp(topic, TOPIC_MODE) == 0) {
-    if (msg == "HEAT") {
-      regMode = 0xaf;
-    } else if (msg == "COOL") {
-      regMode = 0xaf;
+    msg.toLowerCase();
+    if (msg == "heat" || msg == "caldo") {
+      setPower(true);
+      setMode(true);   // true = heat
+      Serial.println("[MQTT] → Mode: HEAT + Power ON");
+    } else if (msg == "cool" || msg == "freddo") {
+      setPower(true);
+      setMode(false);  // false = cool
+      Serial.println("[MQTT] → Mode: COOL + Power ON");
+    } else if (msg == "off" || msg == "spento") {
+      setPower(false);
+      Serial.println("[MQTT] → Mode: OFF");
     }
-    Serial.printf("[MQTT] → Mode: %s\n", msg.c_str());
-    sendAllRegisters();
+    if (lvgl_port_lock(100)) {
+      updateUI();
+      lvgl_port_unlock();
+    }
   }
 }
 
@@ -478,7 +504,7 @@ void mqttPublishDiscovery() {
       "\"modes\":[\"off\",\"heat\",\"cool\"],"
       "\"mode_command_topic\":\"viessmann/mode\","
       "\"mode_state_topic\":\"viessmann/status\","
-      "\"mode_state_template\":\"{% if not value_json.power %}off{% elif value_json.mode == 175 %}heat{% else %}cool{% endif %}\","
+      "\"mode_state_template\":\"{{ value_json.hvac }}\","
       "\"current_temperature_topic\":\"viessmann/status\","
       "\"current_temperature_template\":\"{{ value_json.temp }}\","
       "\"temperature_command_topic\":\"viessmann/temp\","
@@ -487,7 +513,7 @@ void mqttPublishDiscovery() {
       "\"fan_mode_command_topic\":\"viessmann/fan\","
       "\"fan_mode_state_topic\":\"viessmann/status\","
       "\"fan_mode_state_template\":\"{{ value_json.fan }}\","
-      "\"fan_modes\":[\"1\",\"2\",\"3\"],"
+      "\"fan_modes\":[\"auto\",\"min\",\"night\",\"max\"],"
       "\"power_command_topic\":\"viessmann/power\","
       "\"payload_on\":\"ON\","
       "\"payload_off\":\"OFF\","
@@ -538,13 +564,24 @@ void mqttReconnect() {
 void mqttPublishStatus() {
   if (!mqttClient.connected()) return;
 
+  // Determina hvac_mode dai bit del regConfig
+  // BIT 7 (0x0080): Power (0=ON, 1=OFF) — logica invertita!
+  const char* hvac = "off";
+  if (powerOn) {
+    if (regConfig & (1 << 13)) hvac = "heat";
+    else if (regConfig & (1 << 14)) hvac = "cool";
+    else hvac = "cool";  // default freddo
+  }
+
   char msg[256];
   snprintf(msg, sizeof(msg),
-    "{\"power\":%s,\"temp\":%.1f,\"fan\":%d,\"mode\":0x%02X}",
-    (regConfig & 0x8000) ? "true" : "false",
+    "{\"power\":%s,\"temp\":%.1f,\"fan\":\"%s\",\"fan_speed\":%d,\"mode\":%d,\"hvac\":\"%s\"}",
+    powerOn ? "true" : "false",
     regTemp / 10.0,
+    fanName(),
     regConfig & 0x03,
-    regMode);
+    regMode,
+    hvac);
 
   mqttClient.publish(TOPIC_STATUS, msg);
 }
