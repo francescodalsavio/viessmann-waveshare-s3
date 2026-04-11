@@ -19,6 +19,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ArduinoOTA.h>
+#include <PubSubClient.h>
 #include <esp_display_panel.hpp>
 #include <lvgl.h>
 #include "lvgl_v8_port.h"
@@ -32,6 +33,23 @@ using namespace esp_panel::board;
 // === WiFi Config ===
 const char* WIFI_SSID = "Molinella";
 const char* WIFI_PASS = "Fastweb10";
+
+// === MQTT Config ===
+const char* MQTT_SERVER = "192.168.1.86";
+const uint16_t MQTT_PORT = 1883;
+const char* MQTT_USER = "";     // Vuoto se no auth
+const char* MQTT_PASS = "";     // Vuoto se no auth
+const char* MQTT_CLIENT_ID = "viessmann-controller";
+
+// MQTT Topics
+#define TOPIC_POWER    "viessmann/power"
+#define TOPIC_TEMP     "viessmann/temp"
+#define TOPIC_FAN      "viessmann/fan"
+#define TOPIC_MODE     "viessmann/mode"
+#define TOPIC_STATUS   "viessmann/status"
+
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
 
 // === RS485 Pin Definitions (Waveshare ESP32-S3-Touch-LCD-4.3B) ===
 #define RS485_TX_PIN  44
@@ -400,6 +418,92 @@ void displaySleep() {
     displayAwake = false;
     Serial.println("[DISPLAY] ❌ Spento - Backlight OFF");
   }
+}
+
+// ============================================================
+//  MQTT Functions
+// ============================================================
+
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  String msg = "";
+  for (unsigned int i = 0; i < length; i++) {
+    msg += (char)payload[i];
+  }
+
+  Serial.printf("[MQTT] Ricevuto su %s: %s\n", topic, msg.c_str());
+
+  if (strcmp(topic, TOPIC_POWER) == 0) {
+    if (msg == "ON") {
+      regConfig = 0x4003;  // Freddo max
+      Serial.println("[MQTT] → Power ON");
+    } else if (msg == "OFF") {
+      regConfig &= ~(1 << 15);  // Spegni il bit 15
+      Serial.println("[MQTT] → Power OFF");
+    }
+    sendAllRegisters();
+  }
+  else if (strcmp(topic, TOPIC_TEMP) == 0) {
+    float temp = msg.toFloat();
+    if (temp >= 16 && temp <= 30) {
+      setTemperature(temp);
+      Serial.printf("[MQTT] → Temperatura: %.1f°C\n", temp);
+    }
+  }
+  else if (strcmp(topic, TOPIC_FAN) == 0) {
+    int fan = msg.toInt();
+    if (fan >= 0 && fan <= 3) {
+      regConfig = (regConfig & 0xFFFC) | fan;  // Cambia solo i bit 0-1
+      Serial.printf("[MQTT] → Fan: %d\n", fan);
+      sendAllRegisters();
+    }
+  }
+  else if (strcmp(topic, TOPIC_MODE) == 0) {
+    if (msg == "HEAT") {
+      regMode = 0xaf;
+    } else if (msg == "COOL") {
+      regMode = 0xaf;
+    }
+    Serial.printf("[MQTT] → Mode: %s\n", msg.c_str());
+    sendAllRegisters();
+  }
+}
+
+void mqttReconnect() {
+  int attempts = 0;
+  while (!mqttClient.connected() && attempts < 5) {
+    Serial.printf("[MQTT] Connessione in corso (%d/5)...\n", attempts + 1);
+
+    if (mqttClient.connect(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS)) {
+      Serial.println("[MQTT] ✅ Connesso!");
+
+      // Subscribe ai topic di comando
+      mqttClient.subscribe(TOPIC_POWER);
+      mqttClient.subscribe(TOPIC_TEMP);
+      mqttClient.subscribe(TOPIC_FAN);
+      mqttClient.subscribe(TOPIC_MODE);
+
+      // Pubblica lo stato iniziale
+      mqttClient.publish(TOPIC_STATUS, "online");
+    } else {
+      Serial.printf("[MQTT] ❌ Fallito (errore: %d)\n", mqttClient.state());
+      delay(1000);
+      attempts++;
+    }
+  }
+}
+
+void mqttPublishStatus() {
+  if (!mqttClient.connected()) return;
+
+  char msg[256];
+  snprintf(msg, sizeof(msg),
+    "{\"power\":%s,\"temp\":%.1f,\"fan\":%d,\"mode\":0x%02X}",
+    (regConfig & 0x8000) ? "true" : "false",
+    regTemp / 10.0,
+    regConfig & 0x03,
+    regMode);
+
+  mqttClient.publish(TOPIC_STATUS, msg);
 }
 
 // ============================================================
@@ -1480,6 +1584,14 @@ void setup() {
     }
   }
 
+  // === MQTT Setup ===
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("[MQTT] Configurazione broker: %s:%d\n", MQTT_SERVER, MQTT_PORT);
+    mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
+    mqttClient.setCallback(mqttCallback);
+    mqttReconnect();
+  }
+
   // Primo invio
   sendAllRegisters();
   lastSend = millis();
@@ -1490,6 +1602,21 @@ void setup() {
 // ============================================================
 
 void loop() {
+  // === MQTT handler ===
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!mqttClient.connected()) {
+      mqttReconnect();
+    }
+    mqttClient.loop();
+
+    // Pubblica status ogni 10 secondi
+    static uint32_t lastMqttPublish = 0;
+    if (millis() - lastMqttPublish >= 10000) {
+      lastMqttPublish = millis();
+      mqttPublishStatus();
+    }
+  }
+
   // OTA Update handler (controlla continuamente se c'è un aggiornamento)
   ArduinoOTA.handle();
 
