@@ -468,6 +468,46 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
+void mqttPublishDiscovery() {
+  const char* discoveryTopic = "homeassistant/climate/viessmann/config";
+  const char* payload =
+    "{"
+      "\"name\":\"Viessmann\","
+      "\"unique_id\":\"viessmann_climate\","
+      "\"object_id\":\"viessmann\","
+      "\"modes\":[\"off\",\"heat\",\"cool\"],"
+      "\"mode_command_topic\":\"viessmann/mode\","
+      "\"mode_state_topic\":\"viessmann/status\","
+      "\"mode_state_template\":\"{% if not value_json.power %}off{% elif value_json.mode == 175 %}heat{% else %}cool{% endif %}\","
+      "\"current_temperature_topic\":\"viessmann/status\","
+      "\"current_temperature_template\":\"{{ value_json.temp }}\","
+      "\"temperature_command_topic\":\"viessmann/temp\","
+      "\"temperature_state_topic\":\"viessmann/status\","
+      "\"temperature_state_template\":\"{{ value_json.temp }}\","
+      "\"fan_mode_command_topic\":\"viessmann/fan\","
+      "\"fan_mode_state_topic\":\"viessmann/status\","
+      "\"fan_mode_state_template\":\"{{ value_json.fan }}\","
+      "\"fan_modes\":[\"1\",\"2\",\"3\"],"
+      "\"power_command_topic\":\"viessmann/power\","
+      "\"payload_on\":\"ON\","
+      "\"payload_off\":\"OFF\","
+      "\"min_temp\":16,"
+      "\"max_temp\":30,"
+      "\"temp_step\":0.5,"
+      "\"device\":{"
+        "\"identifiers\":[\"viessmann_esp32s3\"],"
+        "\"name\":\"Viessmann Controller\","
+        "\"manufacturer\":\"Custom ESP32-S3\","
+        "\"model\":\"Waveshare 4.3B + RS485\""
+      "}"
+    "}";
+
+  mqttClient.beginPublish(discoveryTopic, strlen(payload), true);
+  mqttClient.print(payload);
+  mqttClient.endPublish();
+  Serial.println("[MQTT] Discovery pubblicato su HA");
+}
+
 void mqttReconnect() {
   int attempts = 0;
   while (!mqttClient.connected() && attempts < 5) {
@@ -484,6 +524,9 @@ void mqttReconnect() {
 
       // Pubblica lo stato iniziale
       mqttClient.publish(TOPIC_STATUS, "online");
+
+      // MQTT Discovery per Home Assistant
+      mqttPublishDiscovery();
     } else {
       Serial.printf("[MQTT] ❌ Fallito (errore: %d)\n", mqttClient.state());
       delay(1000);
