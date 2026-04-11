@@ -792,3 +792,60 @@ The firmware includes proper display initialization. If the display remains blac
 3. The display should show the Sniffer UI with frame capture table
 4. If still black, reset the board by pressing RST button
 
+
+---
+
+## Fix Critico: Display Initialization (EXCCAUSE 0x0000001c)
+
+### Sintomo
+Dopo il flash, il display rimane nero e il sistema crasha con:
+```
+EXCCAUSE: 0x0000001c (LoadProhibited)
+EXCVADDR: 0x00000022 (null pointer)
+```
+
+### Root Cause
+**LVGL objects non possono essere creati prima che il display hardware sia inizializzato.**
+
+Il codice mancava:
+- `Board *board = new Board()` - controller display
+- `board->init()` - init hardware
+- `board->begin()` - start hardware
+- `lvgl_port_init(board->getLCD(), board->getTouch())` - init LVGL con display
+- `lvgl_port_lock/unlock()` - mutex locking per thread safety
+
+### Soluzione Applicata
+```cpp
+void setup() {
+  // ... WiFi, Modbus, Web Server init ...
+
+  // 1. Initialize DISPLAY HARDWARE first
+  Board *board = new Board();
+  board->init();
+  board->begin();
+
+  // 2. Then initialize LVGL
+  lv_init();
+  lvgl_port_init(board->getLCD(), board->getTouch());
+
+  // 3. ONLY NOW create LVGL objects
+  lvgl_port_lock(-1);
+  snifferView.create();
+  lvgl_port_unlock();
+}
+```
+
+### KEY LESSON: Hardware Before Graphics
+**Always initialize hardware (display, LCD driver, etc.) BEFORE initializing graphics libraries (LVGL).**
+
+This applies to:
+- ESP32_Display_Panel → lvgl_port_init()
+- Arduino TFT library → begin()
+- Any framebuffer-based display → requires hardware access before graphics
+
+### Prevention
+- Check git commit `413a0f4` for exact changes
+- Never skip `board->init()` and `board->begin()`
+- Always wrap LVGL calls in `lvgl_port_lock/unlock()`
+- Test display initialization on every port change
+

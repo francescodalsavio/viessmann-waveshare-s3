@@ -393,13 +393,13 @@ void setupWiFi() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
     delay(500);
     Serial.print(".");
     attempts++;
   }
-
   Serial.println();
+
   if (WiFi.status() == WL_CONNECTED) {
     Serial.print("[BOOT] WiFi Connected! IP: ");
     Serial.println(WiFi.localIP());
@@ -461,6 +461,15 @@ void setup() {
   lvgl_port_lock(-1);
   snifferView.create();
   snifferView.show();
+  
+  // Update IP on display
+  if (WiFi.status() == WL_CONNECTED) {
+    String ip = WiFi.localIP().toString();
+    snifferView.setIP(ip.c_str());
+  } else {
+    snifferView.setIP("Not connected");
+  }
+  
   lvgl_port_unlock();
 
   Serial.println("[BOOT] Sending initial state...");

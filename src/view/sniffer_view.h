@@ -34,6 +34,7 @@ private:
   lv_obj_t *label_stats = nullptr;
   lv_obj_t *table_frames = nullptr;
   lv_obj_t *label_info = nullptr;
+  lv_obj_t *label_ip = nullptr;
 
   static const int MAX_TABLE_ROWS = 10;
   int displayedRows = 0;
@@ -84,6 +85,13 @@ public:
     lv_obj_set_style_text_font(label_info, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(label_info, lv_color_hex(0x888888), 0);
     lv_obj_align(label_info, LV_ALIGN_BOTTOM_LEFT, 10, -10);
+
+    // IP address (top right)
+    label_ip = lv_label_create(scr_sniffer);
+    lv_label_set_text(label_ip, "IP: Connecting...");
+    lv_obj_set_style_text_font(label_ip, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(label_ip, lv_color_hex(0x00ff00), 0);
+    lv_obj_align(label_ip, LV_ALIGN_TOP_RIGHT, -10, 10);
   }
 
   void show() {
@@ -158,6 +166,14 @@ public:
     }
 
     displayedRows = rowNum - 1;
+  }
+
+  void setIP(const char* ip_addr) {
+    if (label_ip) {
+      static char buf[64];
+      snprintf(buf, sizeof(buf), "IP: %s", ip_addr);
+      lv_label_set_text(label_ip, buf);
+    }
   }
 
   lv_obj_t* getScreen() { return scr_sniffer; }
