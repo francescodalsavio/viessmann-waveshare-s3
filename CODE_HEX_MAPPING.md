@@ -4,80 +4,81 @@ Guida di come i valori hex/binario sono usati nel codice per ogni azione.
 
 ---
 
-## 🟢 ACCENDI (Power ON)
+## 🟢 ACCENDI (Power ON - Smart)
 
 ### File: `src/domain/use_cases_v2.h` — TogglePowerUseCase::executePowerOn()
 
 ```cpp
-void executePowerOn() {
-  uint16_t regConfig = 0x4003;  // ← ACCENDI con FREDDO MAX
-  uint16_t regTemp = 0x00CD;    // ← 20.5°C
-  uint16_t regMode = 0xb9;      // ← Modo stagionale
+void executePowerOn(uint16_t currentRegConfig) {
+  // ⭐ SMART: Mantiene la modalità attuale (CALDO o FREDDO)
+  uint16_t regConfig = currentRegConfig;
+  regConfig &= ~(1 << 7);  // ← Spegni bit 7 (STANDBY) per accendere
+  // Il resto della configurazione (bit 14, 13, 0-1) rimane invariato
 
-  Result<void> result = repository.sendAllRegisters(regConfig, regTemp, regMode);
+  Result<void> result = repository.sendRegister(101, regConfig);
 }
 ```
 
 ### Breakdown Hex
 
 ```
-REG 101 (regConfig):  0x4003
-├─ Binario: 0100 0000 0000 0011
-├─ Bit 14 (FREDDO): 1 = attivo ✓
-├─ Bit 13 (CALDO): 0 = inattivo
-├─ Bit 7 (STANDBY): 0 = ON ✓
-└─ Bit 1-0 (FAN): 11 = MAX ✓
+SCENARIO 1: Se era in CALDO
+  Prima:  0x2083 (CALDO + STANDBY + FAN MAX)
+  Dopo:   0x2003 (CALDO + ON + FAN MAX) ← bit7 da 1 a 0
 
-REG 102 (regTemp):   0x00CD = 205 decimale
-├─ Conversione: 205 × 0.1 = 20.5°C ✓
+SCENARIO 2: Se era in FREDDO
+  Prima:  0x4083 (FREDDO + STANDBY + FAN MAX)
+  Dopo:   0x4003 (FREDDO + ON + FAN MAX) ← bit7 da 1 a 0
 
-REG 103 (regMode):   0xb9 = 185 decimale
-└─ Modo stagionale (fisso, non cambia)
+Operazione bitwise:
+  regConfig &= ~(1 << 7);  // Cancella il bit 7
+  // Mantiene bit14, bit13, bit0-1 invariati
 ```
 
 ### Cosa Significa
-- **0x4003** = FREDDO MAX + ON
-- **0x00CD** = 20.5°C (temperatura setpoint)
-- **0xb9** = Modo automatico stagionale
+- **ACCENDI è modalità-agnostico**: se eri in CALDO, rimani in CALDO
+- **Operazione**: spegni il bit 7 (STANDBY) della configurazione attuale
+- **Vantaggio**: non costringe l'utente a FREDDO, mantiene la preferenza precedente
+- **Temperatura**: non cambia (non tocchiamo REG 102)
 
 ---
 
-## 🔴 SPEGNI (Power OFF)
+## 🔴 SPEGNI (Power OFF - Smart)
 
 ### File: `src/domain/use_cases_v2.h` — TogglePowerUseCase::executePowerOff()
 
 ```cpp
-void executePowerOff() {
-  uint16_t regConfig = 0x4083;  // ← SPEGNI (FREDDO + STANDBY)
-  uint16_t regTemp = 0x32;      // ← 5.0°C (reset)
-  uint16_t regMode = 0xb9;      // ← Modo stagionale
+void executePowerOff(uint16_t currentRegConfig) {
+  // ⭐ SMART: Mantiene la modalità attuale (CALDO o FREDDO)
+  uint16_t regConfig = currentRegConfig;
+  regConfig |= (1 << 7);  // ← Accendi bit 7 (STANDBY) per spegnere
+  // Il resto della configurazione (bit 14, 13, 0-1) rimane invariato
 
-  Result<void> result = repository.sendAllRegisters(regConfig, regTemp, regMode);
+  Result<void> result = repository.sendRegister(101, regConfig);
 }
 ```
 
 ### Breakdown Hex
 
 ```
-REG 101 (regConfig):  0x4083
-├─ Binario: 0100 0000 1000 0011
-├─ Bit 14 (FREDDO): 1 = attivo ✓
-├─ Bit 13 (CALDO): 0 = inattivo
-├─ Bit 7 (STANDBY): 1 = OFF ✓
-└─ Bit 1-0 (FAN): 11 = MAX
+SCENARIO 1: Se era in CALDO
+  Prima:  0x2003 (CALDO + ON + FAN MAX)
+  Dopo:   0x2083 (CALDO + STANDBY + FAN MAX) ← bit7 da 0 a 1
 
-REG 102 (regTemp):   0x32 = 50 decimale
-├─ Conversione: 50 × 0.1 = 5.0°C ✓
-└─ Anticongelamento (reset al minimo)
+SCENARIO 2: Se era in FREDDO
+  Prima:  0x4003 (FREDDO + ON + FAN MAX)
+  Dopo:   0x4083 (FREDDO + STANDBY + FAN MAX) ← bit7 da 0 a 1
 
-REG 103 (regMode):   0xb9
-└─ Modo stagionale
+Operazione bitwise:
+  regConfig |= (1 << 7);  // Accendi il bit 7
+  // Mantiene bit14, bit13, bit0-1 invariati
 ```
 
 ### Cosa Significa
-- **0x4083** = FREDDO + STANDBY (OFF)
-- **0x32** = 5.0°C (reset anticongelamento)
-- **0xb9** = Modo automatico
+- **SPEGNI è modalità-agnostico**: se eri in CALDO, rimani in CALDO (ma spento)
+- **Operazione**: accendi il bit 7 (STANDBY) della configurazione attuale
+- **Vantaggio**: spegne solo il ventilconvettore, non lo forza a una modalità
+- **Temperatura**: non cambia (non tocchiamo REG 102)
 
 ---
 
@@ -273,17 +274,33 @@ if (speed == 3) regConfig = (regConfig & ~0x03) | 0x03;  // MAX
 
 ## 📋 Tabella Veloce — Tutte le Azioni
 
-| Azione | File | Hex (REG101) | Binario | Bit14 | Bit13 | Bit7 |
-|--------|------|------|---------|-------|-------|------|
-| **ACCENDI** | executePowerOn | 0x4003 | 01000000 0011 | 1 | 0 | 0 |
-| **SPEGNI** | executePowerOff | 0x4083 | 01000000 1011 | 1 | 0 | 1 |
-| **CALDO** | executeHeating | 0x2003 | 00100000 0011 | 0 | 1 | 0 |
-| **FREDDO** | executeCooling | 0x4003 | 01000000 0011 | 1 | 0 | 0 |
-| **TEMP** | SetTemperatureUseCase | Dipende da °C | 0x32-0xF0 | - | - | - |
-| **FAN OFF** | execute(0,...) | 0x4000 | 01000000 0000 | 1 | 0 | - |
-| **FAN MIN** | execute(1,...) | 0x4001 | 01000000 0001 | 1 | 0 | - |
-| **FAN AUTO** | execute(2,...) | 0x4002 | 01000000 0010 | 1 | 0 | - |
-| **FAN MAX** | execute(3,...) | 0x4003 | 01000000 0011 | 1 | 0 | - |
+| Azione | Operazione | Hex Risultato | Bitwise Op | Note |
+|--------|-----------|---------------|-----------|------|
+| **ACCENDI** | executePowerOn | Dipende da stato | `regConfig &= ~(1<<7)` | ⭐ Smart: mantiene CALDO/FREDDO |
+| **SPEGNI** | executePowerOff | Dipende da stato | `regConfig \|= (1<<7)` | ⭐ Smart: mantiene CALDO/FREDDO |
+| **CALDO** | executeHeating | 0x2000-0x2003 | `regConfig &= ~(1<<14); regConfig \|= (1<<13);` | Accende bit13, spegne bit14 |
+| **FREDDO** | executeCooling | 0x4000-0x4003 | `regConfig &= ~(1<<13); regConfig \|= (1<<14);` | Accende bit14, spegne bit13 |
+| **TEMP** | SetTemperatureUseCase | 0x32-0xF0 | `(temp * 10)` | Formula: Celsius × 10 |
+| **FAN OFF** | execute(0,...) | Dipende da modo | `regConfig = (regConfig & ~0x03) \| 0x00` | bit0-1 = 00 (OFF) |
+| **FAN MIN** | execute(1,...) | Dipende da modo | `regConfig = (regConfig & ~0x03) \| 0x01` | bit0-1 = 01 (MIN) |
+| **FAN AUTO** | execute(2,...) | Dipende da modo | `regConfig = (regConfig & ~0x03) \| 0x02` | bit0-1 = 10 (AUTO/NIGHT) |
+| **FAN MAX** | execute(3,...) | Dipende da modo | `regConfig = (regConfig & ~0x03) \| 0x03` | bit0-1 = 11 (MAX) |
+
+### Esempi di Risultati dopo ACCENDI/SPEGNI
+
+```
+Se è in CALDO (0x2003):
+  ACCENDI: 0x2003 (non cambia, bit7 era già 0)
+  SPEGNI:  0x2083 (aggiunge bit7)
+
+Se è in FREDDO (0x4003):
+  ACCENDI: 0x4003 (non cambia, bit7 era già 0)
+  SPEGNI:  0x4083 (aggiunge bit7)
+
+Se è in CALDO+STANDBY (0x2083):
+  ACCENDI: 0x2003 (toglie bit7)
+  SPEGNI:  0x2083 (non cambia, bit7 era già 1)
+```
 
 ---
 

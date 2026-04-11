@@ -44,6 +44,10 @@
 #include <WebServer.h>
 #include <lvgl.h>
 #include "lvgl_v8_port.h"
+#include "esp_display_panel.hpp"
+
+using namespace esp_panel::board;
+using namespace esp_panel::drivers;
 
 // ========== LAYER 0: DEVICES ==========
 #include "model/modbus_service.h"
@@ -433,12 +437,31 @@ void setup() {
   Serial.println("[BOOT] Initializing Web Server...");
   setupWebServer();
 
+  Serial.println("[BOOT] Initializing Display Panel...");
+  Board *board = new Board();
+  board->init();
+
+#if LVGL_PORT_AVOID_TEARING_MODE
+  auto lcd = board->getLCD();
+  lcd->configFrameBufferNumber(LVGL_PORT_DISP_BUFFER_NUM);
+#if ESP_PANEL_DRIVERS_BUS_ENABLE_RGB && CONFIG_IDF_TARGET_ESP32S3
+  auto lcd_bus = lcd->getBus();
+  if (lcd_bus->getBasicAttributes().type == ESP_PANEL_BUS_TYPE_RGB) {
+    static_cast<BusRGB *>(lcd_bus)->configRGB_BounceBufferSize(lcd->getFrameWidth() * 10);
+  }
+#endif
+#endif
+  board->begin();
+
   Serial.println("[BOOT] Initializing LVGL...");
   lv_init();
+  lvgl_port_init(board->getLCD(), board->getTouch());
 
   Serial.println("[BOOT] Creating Sniffer UI...");
+  lvgl_port_lock(-1);
   snifferView.create();
   snifferView.show();
+  lvgl_port_unlock();
 
   Serial.println("[BOOT] Sending initial state...");
   model.setPower(true);

@@ -736,3 +736,59 @@ pio run -e esp32s3-43b -t upload
 ---
 
 **Autore:** Francesco Dal Savio | **Status:** ✅ Produzione | **Ultimo aggiornamento:** Aprile 2026
+
+---
+
+## Troubleshooting: ESP32 Not Responding to Serial Commands
+
+### Problem
+When flashing, you see: `Failed to connect to ESP32-S3: No serial data received`
+
+### Cause
+The ESP32-S3 needs to be manually put into **download mode** to accept new firmware.
+
+### Solution: Manual Download Mode (Waveshare ESP32-S3-Touch-LCD-4.3B)
+
+1. **Hold the BOOT button** (small button on the board) continuously
+2. **Press RST button** (reset) while still holding BOOT
+3. **Release both buttons** in order (RST first, then BOOT)
+4. The display LED should turn off - this indicates download mode is active
+5. Now run the flash command:
+
+```bash
+python3 -m platformio run --target upload
+```
+
+Or for manual multi-step flashing (if above doesn't work):
+
+```bash
+cd /Users/francesco/Documents/Altri\ progetti/viessmann-waveshare-s3
+
+# Erase entire flash
+python3 -m esptool --chip esp32s3 --port /dev/cu.usbmodem101 --baud 921600 erase_flash
+
+# Write bootloader
+python3 -m esptool --chip esp32s3 --port /dev/cu.usbmodem101 --baud 921600 \
+  write_flash -z 0x0 .pio/build/esp32s3-43b/bootloader.bin
+
+# Write partitions  
+python3 -m esptool --chip esp32s3 --port /dev/cu.usbmodem101 --baud 921600 \
+  write_flash -z 0x8000 .pio/build/esp32s3-43b/partitions.bin
+
+# Write firmware
+python3 -m esptool --chip esp32s3 --port /dev/cu.usbmodem101 --baud 921600 \
+  write_flash -z 0x10000 .pio/build/esp32s3-43b/firmware.bin
+```
+
+### If LED Doesn't Turn Off
+- Try a different USB cable (USB 3.0 type-C recommended)
+- Try a different USB port on your computer
+- The board may have a hardware issue
+
+### Display Still Black After Flashing
+The firmware includes proper display initialization. If the display remains black after successful flashing:
+1. Check the serial monitor output (baud 115200)
+2. Look for `[BOOT]` messages - if you see them, the firmware is running
+3. The display should show the Sniffer UI with frame capture table
+4. If still black, reset the board by pressing RST button
+
