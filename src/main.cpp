@@ -476,9 +476,13 @@ static lv_obj_t* make_btn(lv_obj_t *parent, const char *text, lv_event_cb_t cb, 
 // === Global touch callback for display wakeup ===
 static void cb_global_touch(lv_event_t *e) {
   Serial.printf("[TOUCH] Evento rilevato! displayAwake=%d\n", displayAwake);
-  // Solo resetta il timer se il display era spento
+  // Se display era spento, riaccendi
   if (!displayAwake) {
     displayWakeup();
+  } else {
+    // Se display è acceso, resetta il timer del sleep
+    lastTouchTime = millis();
+    Serial.printf("[TOUCH] Timer resettato\n");
   }
 }
 
