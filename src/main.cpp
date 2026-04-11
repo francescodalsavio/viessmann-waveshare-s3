@@ -229,8 +229,16 @@ String statusJSON() {
 // ============================================================
 
 void setPower(bool on) {
-  // Cambia solo BIT 7 (standby): 1=spento, 0=acceso
-  // Mantiene fan speed, modalità, temperatura invariate
+  // === POWER CONTROL - Cambia solo BIT 7 ===
+  // BIT 7 (0x0080): Standby flag
+  //   0 = Acceso (ON)
+  //   1 = Spento (OFF/Standby)
+  //
+  // Gli altri bit rimangono INVARIATI:
+  //   BIT 0-1: Fan speed (max, medio, basso, off)
+  //   BIT 13-14: Modalità (caldo/freddo)
+  //   REG 102: Temperatura (NON tocca)
+
   if (on) {
     regConfig &= ~0x0080;  // Cancella bit 7 → accendi
   } else {
@@ -243,31 +251,71 @@ void setPower(bool on) {
 }
 
 void setFanSpeed(int speed) {
+  // === FAN SPEED CONTROL - Cambia solo BIT 0-1 ===
+  // BIT 0-1 (0x0003): Velocità ventola
+  //   00 = Off
+  //   01 = Basso
+  //   10 = Medio
+  //   11 = Max
+  //
+  // Gli altri bit rimangono INVARIATI:
+  //   BIT 7: Power (acceso/spento)
+  //   BIT 13-14: Modalità (caldo/freddo)
+  //   REG 102: Temperatura (NON tocca)
+
   if (speed < 0 || speed > 3) return;
-  regConfig = (regConfig & ~0x03) | (speed & 0x03);
+  regConfig = (regConfig & ~0x03) | (speed & 0x03);  // Cancella bit 0-1, poi setta il nuovo speed
   sendAllRegisters();
 }
 
 void setMode(bool heat) {
+  // === MODE CONTROL (Caldo/Freddo) - Cambia solo BIT 13-14 ===
+  // BIT 13-14 in regConfig: Modalità
+  //   BIT 14=1, BIT 13=0: FREDDO (cooling) - valore 0x4000
+  //   BIT 14=0, BIT 13=1: CALDO (heating) - valore 0x2000
+  //
+  // BIT 1 in regMode: Indicatore modalità interna
+  //
+  // Gli altri bit rimangono INVARIATI:
+  //   BIT 0-1: Fan speed
+  //   BIT 7: Power (acceso/spento)
+  //   REG 102: Temperatura (NON tocca)
+
   heating = heat;
   if (heat) {
-    regMode |= 0x02;
-    if (powerOn) { regConfig &= ~(1 << 14); regConfig |= (1 << 13); }
+    regMode |= 0x02;  // Setta bit 1 in regMode (modalità caldo)
+    if (powerOn) {
+      regConfig &= ~(1 << 14);  // Cancella bit 14
+      regConfig |= (1 << 13);   // Setta bit 13 → CALDO
+    }
   } else {
-    regMode &= ~0x02;
-    if (powerOn) { regConfig &= ~(1 << 13); regConfig |= (1 << 14); }
+    regMode &= ~0x02;  // Cancella bit 1 in regMode (modalità freddo)
+    if (powerOn) {
+      regConfig &= ~(1 << 13);  // Cancella bit 13
+      regConfig |= (1 << 14);   // Setta bit 14 → FREDDO
+    }
   }
   sendAllRegisters();
 }
 
 void setTemperature(float temp) {
+  // === TEMPERATURE CONTROL - Modifica solo REG 102 ===
+  // REG 102: Temperatura (0x00CD = 20.5°C, 0x0032 = 5.0°C, etc)
+  // Formato: temperatura * 10 (es: 20.5°C → 0x00CD = 205)
+  //
+  // Gli altri registri rimangono INVARIATI:
+  //   REG 101 (regConfig): Power, fan speed, modalità (NON tocca)
+  //   REG 103 (regMode): Modo stagionale (NON tocca)
+  //
+  // DEBOUNCE: L'utente può cambiare temperatura rapidamente
+  //   - Display aggiorna SUBITO (esperienza reattiva)
+  //   - Ma Modbus invia solo dopo 1 sec di inattività
+  //   (evita di inviare tanti comandi quando l'utente scorre)
+
   if (temp < 16.0) temp = 16.0;
   if (temp > 28.0) temp = 28.0;  // Limiti: 16-28°C
 
-  // Cambia il valore SUBITO nel display
-  regTemp = (uint16_t)(temp * 10);
-
-  // Ma INVIA il comando Modbus solo dopo 1 secondo di inattività
+  regTemp = (uint16_t)(temp * 10);  // Aggiorna subito per il display
   pendingTemp = temp;
   tempPending = true;
   tempChangeTime = millis();
