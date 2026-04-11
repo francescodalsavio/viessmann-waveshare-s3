@@ -254,8 +254,8 @@ void setMode(bool heat) {
 }
 
 void setTemperature(float temp) {
-  if (temp < 5.0) temp = 5.0;
-  if (temp > 40.0) temp = 40.0;  // Match master max (5-40°C range)
+  if (temp < 16.0) temp = 16.0;
+  if (temp > 28.0) temp = 28.0;  // Limiti: 16-28°C
   regTemp = (uint16_t)(temp * 10);
   sendAllRegisters();
 }
