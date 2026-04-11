@@ -29,7 +29,7 @@ public:
 
 private:
   uint16_t regConfig = 0x4003;
-  uint16_t regTemp = 0x00CD;
+  uint16_t regTemp = 0x00E6;  // 23.0°C ← Come fa il Master originale!
   uint16_t regMode = 0xb9;
   bool powerOn = true;
   bool heating = false;

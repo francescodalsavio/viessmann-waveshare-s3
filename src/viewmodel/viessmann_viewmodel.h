@@ -35,9 +35,10 @@ public:
 
   ViessmannViewModel(ViessmannModel &m) : model(m) {
     // Osserva cambiamenti nel Model
-    model.onStateChanged = [this]() {
-      onModelStateChanged();
-    };
+    // DISABILITATO: causa deadlock con LVGL
+    // model.onStateChanged = [this]() {
+    //   onModelStateChanged();
+    // };
 
     // Aggiorna display iniziale
     updateDisplay();

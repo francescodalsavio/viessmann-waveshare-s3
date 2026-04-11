@@ -81,13 +81,23 @@ public:
     txBuf[pos++] = '\n';
 
 #ifdef ARDUINO
-    // Invia
-    while (RS485.available()) RS485.read();  // Svuota buffer
-    RS485.write((uint8_t*)txBuf, pos);
-    RS485.flush();
+    // Svuota buffer RX CON TIMEOUT (max 10ms)
+    uint32_t rxStart = millis();
+    while (RS485.available() && (millis() - rxStart) < 10) {
+      RS485.read();
+    }
 
-    Serial.printf("[MODBUS] Inviato: addr=0x%02X reg=0x%04X val=0x%04X lrc=0x%02X\n",
-                  addr, reg, value, lrc);
+    // Scrivi CON TIMEOUT per non bloccarsi indefinitamente
+    int written = 0;
+    uint32_t txStart = millis();
+    while (written < pos && (millis() - txStart) < 50) {
+      if (RS485.availableForWrite() > 0) {
+        written += RS485.write(txBuf[written]);
+      }
+    }
+
+    Serial.printf("[MODBUS] Inviato: addr=0x%02X reg=0x%04X val=0x%04X lrc=0x%02X (wrote %d bytes)\n",
+                  addr, reg, value, lrc, written);
 #endif
   }
 

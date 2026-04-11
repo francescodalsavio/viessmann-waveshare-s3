@@ -1,0 +1,98 @@
+[
+  {
+    "num": "1",
+    "tempo": "02:34.847",
+    "registro": "0.00s",
+    "valore": "101",
+    "decodifica": "0x4003",
+    "azione": "ON - FREDDO MAX (primo comando)"
+  },
+  {
+    "num": "2",
+    "tempo": "02:36.003",
+    "registro": "1.16s",
+    "valore": "102",
+    "decodifica": "0xe6",
+    "azione": "Temperatura 23.0°C"
+  },
+  {
+    "num": "3",
+    "tempo": "02:37.152",
+    "registro": "1.15s",
+    "valore": "103",
+    "decodifica": "0xaf",
+    "azione": "Modo"
+  },
+  {
+    "num": "4",
+    "tempo": "03:42.838",
+    "registro": "65.69s",
+    "valore": "101",
+    "decodifica": "0x4003",
+    "azione": "Keep-alive (re-invio periodico)"
+  },
+  {
+    "num": "5",
+    "tempo": "03:43.995",
+    "registro": "1.16s",
+    "valore": "102",
+    "decodifica": "0xe6",
+    "azione": "Temperatura 23.0°C"
+  },
+  {
+    "num": "6",
+    "tempo": "03:45.151",
+    "registro": "1.16s",
+    "valore": "103",
+    "decodifica": "0xaf",
+    "azione": "Modo"
+  },
+  {
+    "num": "7",
+    "tempo": "04:50.838",
+    "registro": "65.69s",
+    "valore": "101",
+    "decodifica": "0x4003",
+    "azione": "Keep-alive (re-invio periodico)"
+  },
+  {
+    "num": "8",
+    "tempo": "04:51.994",
+    "registro": "1.16s",
+    "valore": "102",
+    "decodifica": "0xe6",
+    "azione": "Temperatura 23.0°C"
+  },
+  {
+    "num": "9",
+    "tempo": "04:54.398",
+    "registro": "2.40s",
+    "valore": "103",
+    "decodifica": "0xaf",
+    "azione": "Modo"
+  },
+  {
+    "num": "10",
+    "tempo": "05:58.837",
+    "registro": "64.44s",
+    "valore": "101",
+    "decodifica": "0x4003",
+    "azione": "Keep-alive (re-invio periodico)"
+  },
+  {
+    "num": "11",
+    "tempo": "05:59.993",
+    "registro": "1.16s",
+    "valore": "102",
+    "decodifica": "0xe6",
+    "azione": "Temperatura 23.0°C"
+  },
+  {
+    "num": "12",
+    "tempo": "06:01.963",
+    "registro": "1.97s",
+    "valore": "103",
+    "decodifica": "0xaf",
+    "azione": "Modo"
+  }
+]

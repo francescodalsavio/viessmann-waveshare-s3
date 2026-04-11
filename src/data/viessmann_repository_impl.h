@@ -47,11 +47,9 @@ public:
 
       Result<void> r1 = sendRegister(101, regConfig);
       if (r1.isErr()) return r1;
-      delay(500);
 
       Result<void> r2 = sendRegister(102, regTemp);
       if (r2.isErr()) return r2;
-      delay(500);
 
       Result<void> r3 = sendRegister(103, regMode);
       if (r3.isErr()) return r3;

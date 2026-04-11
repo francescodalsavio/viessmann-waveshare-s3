@@ -1,6 +1,7 @@
 #ifndef USE_CASES_V2_H
 #define USE_CASES_V2_H
 
+#include <Arduino.h>  // Per delay()
 #include "./i_viessmann_repository.h"
 #include "../infrastructure/i_logger.h"
 #include <functional>
@@ -79,32 +80,40 @@ public:
       : model(m), repository(r), logger(l) {}
 
   void executePowerOn() {
-    uint16_t regConfig = 0x4003;  // 0100 0000 0000 0011 — FREDDO MAX + ON
-    uint16_t regTemp = 0x00CD;    // 0000 0000 1100 1101 — 20.5°C
-    uint16_t regMode = 0xb9;      // 1011 1001 — Seasonal mode
+    uint16_t regConfig = 0x4003;  // FREDDO MAX + ON
+    uint16_t regTemp = 0x00E6;    // 23.0°C — Come Master originale!
+    uint16_t regMode = 0xb9;      // Seasonal mode
 
-    Result<void> result = repository.sendAllRegisters(regConfig, regTemp, regMode);
-    if (logger) {
-      if (result.isOk()) {
-        logger->info("[UC] TogglePower: ON ✓");
-      } else {
-        logger->error(result.errorMessage());
+    // Manda la sequenza 2 volte (come fa il Master originale)
+    for (int i = 0; i < 2; i++) {
+      Result<void> result = repository.sendAllRegisters(regConfig, regTemp, regMode);
+      if (logger && i == 0) {
+        if (result.isOk()) {
+          logger->info("[UC] TogglePower: ON ✓ (x2)");
+        } else {
+          logger->error(result.errorMessage());
+        }
       }
+      // NO delay() — causa blocco della UI! Manda subito 2 volte
     }
   }
 
   void executePowerOff() {
-    uint16_t regConfig = 0x4083;  // 0100 0000 1000 0011 — FREDDO + STANDBY
-    uint16_t regTemp = 0x32;      // 0000 0000 0011 0010 — 5.0°C (reset)
-    uint16_t regMode = 0xb9;      // 1011 1001 — Seasonal mode
+    uint16_t regConfig = 0x4083;  // FREDDO + STANDBY
+    uint16_t regTemp = 0x00E6;    // 23.0°C — Mantieni stessa temperatura!
+    uint16_t regMode = 0xb9;      // Seasonal mode
 
-    Result<void> result = repository.sendAllRegisters(regConfig, regTemp, regMode);
-    if (logger) {
-      if (result.isOk()) {
-        logger->info("[UC] TogglePower: OFF ✓");
-      } else {
-        logger->error(result.errorMessage());
+    // Manda la sequenza 2 volte (come fa il Master originale)
+    for (int i = 0; i < 2; i++) {
+      Result<void> result = repository.sendAllRegisters(regConfig, regTemp, regMode);
+      if (logger && i == 0) {
+        if (result.isOk()) {
+          logger->info("[UC] TogglePower: OFF ✓ (x2)");
+        } else {
+          logger->error(result.errorMessage());
+        }
       }
+      // NO delay() — causa blocco della UI! Manda subito 2 volte
     }
   }
 };
