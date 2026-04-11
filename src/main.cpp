@@ -44,6 +44,12 @@ uint16_t regMode   = 0xaf;    // modo stagionale (identico al master originale)
 bool     powerOn   = true;    // acceso al boot
 bool     heating   = false;   // modalità FREDDO (non CALDO)
 
+// === Temperature Debounce (aspetta 1 secondo prima di inviare) ===
+uint32_t tempChangeTime = 0;
+#define TEMP_DEBOUNCE_MS 1000  // Aspetta 1 secondo
+float pendingTemp = 0;
+bool tempPending = false;
+
 // === Web Server ===
 WebServer webServer(80);
 
@@ -256,8 +262,13 @@ void setMode(bool heat) {
 void setTemperature(float temp) {
   if (temp < 16.0) temp = 16.0;
   if (temp > 28.0) temp = 28.0;  // Limiti: 16-28°C
-  regTemp = (uint16_t)(temp * 10);
-  sendAllRegisters();
+
+  // Debounce: aspetta 1 secondo prima di inviare
+  pendingTemp = temp;
+  tempPending = true;
+  tempChangeTime = millis();
+
+  Serial.printf("[TEMP] Pending: %.1f°C (attesa 1 sec)\n", temp);
 }
 
 // Forward declaration
@@ -1156,6 +1167,14 @@ void loop() {
   while (RS485.available()) {
     uint8_t raw = RS485.read();
     processRxByte((char)(raw & 0x7F));
+  }
+
+  // Temperature debounce (aspetta 1 sec, poi invia)
+  if (tempPending && (millis() - tempChangeTime >= TEMP_DEBOUNCE_MS)) {
+    tempPending = false;
+    regTemp = (uint16_t)(pendingTemp * 10);
+    Serial.printf("[TEMP] Debounce scaduto, invio temperatura: %.1f°C\n", pendingTemp);
+    sendAllRegisters();
   }
 
   // Invio periodico (keep-alive ogni 68 sec, anche quando spento - come master)
