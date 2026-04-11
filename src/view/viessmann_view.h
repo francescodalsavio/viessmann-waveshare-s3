@@ -80,7 +80,7 @@ public:
     // Status (FREDDO/CALDO)
     label_status = lv_label_create(scr);
     lv_label_set_text(label_status, viewModel.getDisplayStatus());
-    lv_obj_set_style_text_font(label_status, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(label_status, &lv_font_montserrat_26, 0);
     lv_obj_align(label_status, LV_ALIGN_TOP_MID, 0, 120);
 
     // ===== CONTROLLI TEMPERATURA =====
@@ -239,32 +239,32 @@ private:
   // ========== LVGL CALLBACKS (solo forwarding a ViewModel) ==========
 
   static void btn_temp_up_callback(lv_event_t *e) {
-    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(lv_obj_get_target(e));
+    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(e->target);
     view->viewModel.onTemperatureUp();
   }
 
   static void btn_temp_down_callback(lv_event_t *e) {
-    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(lv_obj_get_target(e));
+    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(e->target);
     view->viewModel.onTemperatureDown();
   }
 
   static void btn_power_on_callback(lv_event_t *e) {
-    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(lv_obj_get_target(e));
+    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(e->target);
     view->viewModel.onPowerOn();
   }
 
   static void btn_power_off_callback(lv_event_t *e) {
-    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(lv_obj_get_target(e));
+    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(e->target);
     view->viewModel.onPowerOff();
   }
 
   static void btn_heat_callback(lv_event_t *e) {
-    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(lv_obj_get_target(e));
+    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(e->target);
     view->viewModel.onHeatingToggle();
   }
 
   static void btn_cool_callback(lv_event_t *e) {
-    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(lv_obj_get_target(e));
+    ViessmannView *view = (ViessmannView *)lv_obj_get_user_data(e->target);
     view->viewModel.onCoolingToggle();
   }
 };

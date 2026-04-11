@@ -84,7 +84,7 @@
 #include "data/viessmann_repository.h"
 
 // ========== LAYER 2: DOMAIN (USE CASES) ==========
-#include "domain/use_cases.h"
+#include "domain/use_cases_v2.h"
 
 // ========== LAYER 3: MODEL (ENTITY STATE) ==========
 #include "model/viessmann_model_v2.h"

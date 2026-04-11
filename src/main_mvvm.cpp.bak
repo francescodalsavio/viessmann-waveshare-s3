@@ -179,7 +179,7 @@ void setup() {
   // Inizializza LVGL
   Serial.println("[BOOT] Initializing LVGL...");
   lv_init();
-  lv_tick_set_cb(millis_cb);
+  // lv_tick_set_cb() is not available in LVGL 8.4.0 — handled internally
 
   // Initialize display hardware (dipende dal tuo setup)
   // ... (configurazione display/touchscreen)

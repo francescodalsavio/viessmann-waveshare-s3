@@ -3,7 +3,7 @@
 
 #include <string>
 #include <cstdio>
-#include "../model/viessmann_model.h"
+#include "../model/viessmann_model_v2.h"
 
 /**
  * ViessmannViewModel - Presentation Layer (MVVM Pattern)
