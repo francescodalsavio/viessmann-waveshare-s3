@@ -263,12 +263,15 @@ void setTemperature(float temp) {
   if (temp < 16.0) temp = 16.0;
   if (temp > 28.0) temp = 28.0;  // Limiti: 16-28°C
 
-  // Debounce: aspetta 1 secondo prima di inviare
+  // Cambia il valore SUBITO nel display
+  regTemp = (uint16_t)(temp * 10);
+
+  // Ma INVIA il comando Modbus solo dopo 1 secondo di inattività
   pendingTemp = temp;
   tempPending = true;
   tempChangeTime = millis();
 
-  Serial.printf("[TEMP] Pending: %.1f°C (attesa 1 sec)\n", temp);
+  Serial.printf("[TEMP] Display: %.1f°C, Modbus invio in 1 sec se non cambi\n", temp);
 }
 
 // Forward declaration
