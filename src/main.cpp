@@ -34,8 +34,12 @@ const char* WIFI_PASS = "Fastweb10";
 #define RS485_TX_PIN  44
 #define RS485_RX_PIN  43
 #define RS485          Serial1
-#define BAUD_RATE      9600
-#define SEND_INTERVAL  68000  // 68 sec (come master originale)
+#define BAUD_RATE         9600
+#define SEND_INTERVAL     68000  // 68 sec (come master originale)
+
+// === MODBUS RETRY CONFIGURATION ===
+#define MODBUS_RETRIES    10     // Numero di ripetizioni per registro
+#define MODBUS_RETRY_DELAY 100   // Delay tra ripetizioni (ms)
 
 // === Stato ventilconvettore ===
 uint16_t regConfig = 0x4003;  // FREDDO MAX (come master originale) - bit14=FREDDO, bit1-0=FAN MAX
@@ -168,30 +172,30 @@ void sendAllRegisters() {
   Serial.println(">>> [SNIFFER MODE] Invio disabilitato, ascolto passivo...");
   return;
 #endif
-  Serial.println(">>> Invio registri (x10 con delay 100ms)...");
+  Serial.printf(">>> Invio registri (x%d con delay %dms)...\n", MODBUS_RETRIES, MODBUS_RETRY_DELAY);
 
-  // REG 101 - invia 10 volte
-  for (int i = 0; i < 10; i++) {
+  // REG 101 - invia MODBUS_RETRIES volte
+  for (int i = 0; i < MODBUS_RETRIES; i++) {
     modbusWriteRegister(0, 101, regConfig);
-    delay(100);
+    delay(MODBUS_RETRY_DELAY);
   }
   delay(1160);
 
-  // REG 102 - invia 10 volte
-  for (int i = 0; i < 10; i++) {
+  // REG 102 - invia MODBUS_RETRIES volte
+  for (int i = 0; i < MODBUS_RETRIES; i++) {
     modbusWriteRegister(0, 102, regTemp);
-    delay(100);
+    delay(MODBUS_RETRY_DELAY);
   }
   delay(1160);
 
-  // REG 103 - invia 10 volte
-  for (int i = 0; i < 10; i++) {
+  // REG 103 - invia MODBUS_RETRIES volte
+  for (int i = 0; i < MODBUS_RETRIES; i++) {
     modbusWriteRegister(0, 103, regMode);
-    delay(100);
+    delay(MODBUS_RETRY_DELAY);
   }
 
-  Serial.printf("    101=0x%04X 102=0x%04X(%.1fC) 103=0x%04X OK (sent x10)\n",
-                regConfig, regTemp, regTemp / 10.0, regMode);
+  Serial.printf("    101=0x%04X 102=0x%04X(%.1fC) 103=0x%04X OK (sent x%d)\n",
+                regConfig, regTemp, regTemp / 10.0, regMode, MODBUS_RETRIES);
 }
 
 // === Helper ===
@@ -228,15 +232,18 @@ void setPower(bool on) {
   if (on) {
     // Comandi di accensione uguali al master originale
     regConfig = 0x4003;  // FREDDO MAX (bit14 + FAN MAX)
-    // regTemp rimane quello impostato dall'utente (non forzare 0x32)
+    regTemp = 0x00C8;    // Default 20.0°C (x10)
     regMode = 0xaf;      // Modo come master
     powerOn = true;
+    tempPending = false;  // Cancella debounce se attivo
   } else {
     // Comandi di spegnimento uguali al master originale
     regConfig = 0x4083;  // FREDDO + STANDBY (bit14 + bit7)
     regTemp = 0x32;      // 5.0°C (come master quando spento)
     regMode = 0xaf;      // Modo come master
     powerOn = false;
+    // Cancella il debounce in corso per evitare che la vecchia temperatura sobrascrivi il 5°C
+    tempPending = false;
   }
   sendAllRegisters();
 }
