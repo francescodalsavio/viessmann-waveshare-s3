@@ -162,13 +162,29 @@ void sendAllRegisters() {
   Serial.println(">>> [SNIFFER MODE] Invio disabilitato, ascolto passivo...");
   return;
 #endif
-  Serial.println(">>> Invio registri...");
-  modbusWriteRegister(0, 101, regConfig);  // Broadcast (come il master originale)
-  delay(1160);  // 1.16 secondi tra registri (come master originale)
-  modbusWriteRegister(0, 102, regTemp);
+  Serial.println(">>> Invio registri (x10 con delay 100ms)...");
+
+  // REG 101 - invia 10 volte
+  for (int i = 0; i < 10; i++) {
+    modbusWriteRegister(0, 101, regConfig);
+    delay(100);
+  }
   delay(1160);
-  modbusWriteRegister(0, 103, regMode);
-  Serial.printf("    101=0x%04X 102=0x%04X(%.1fC) 103=0x%04X OK\n",
+
+  // REG 102 - invia 10 volte
+  for (int i = 0; i < 10; i++) {
+    modbusWriteRegister(0, 102, regTemp);
+    delay(100);
+  }
+  delay(1160);
+
+  // REG 103 - invia 10 volte
+  for (int i = 0; i < 10; i++) {
+    modbusWriteRegister(0, 103, regMode);
+    delay(100);
+  }
+
+  Serial.printf("    101=0x%04X 102=0x%04X(%.1fC) 103=0x%04X OK (sent x10)\n",
                 regConfig, regTemp, regTemp / 10.0, regMode);
 }
 
