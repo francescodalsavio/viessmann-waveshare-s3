@@ -229,22 +229,16 @@ String statusJSON() {
 // ============================================================
 
 void setPower(bool on) {
+  // Cambia solo BIT 7 (standby): 1=spento, 0=acceso
+  // Mantiene fan speed, modalità, temperatura invariate
   if (on) {
-    // Comandi di accensione uguali al master originale
-    regConfig = 0x4003;  // FREDDO MAX (bit14 + FAN MAX)
-    regTemp = 0x00C8;    // Default 20.0°C (x10)
-    regMode = 0xaf;      // Modo come master
-    powerOn = true;
-    tempPending = false;  // Cancella debounce se attivo
+    regConfig &= ~0x0080;  // Cancella bit 7 → accendi
   } else {
-    // Comandi di spegnimento uguali al master originale
-    regConfig = 0x4083;  // FREDDO + STANDBY (bit14 + bit7)
-    regTemp = 0x32;      // 5.0°C (come master quando spento)
-    regMode = 0xaf;      // Modo come master
-    powerOn = false;
-    // Cancella il debounce in corso per evitare che la vecchia temperatura sobrascrivi il 5°C
-    tempPending = false;
+    regConfig |= 0x0080;   // Setta bit 7 → spegni
   }
+  powerOn = on;
+  tempPending = false;
+  Serial.printf("[POWER] %s (regConfig=0x%04X)\n", on ? "ON" : "OFF", regConfig);
   sendAllRegisters();
 }
 
