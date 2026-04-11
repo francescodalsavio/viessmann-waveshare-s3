@@ -110,46 +110,54 @@ void addToSnifferBuffer(const SniffedFrame &frame) {
   snifferCount++;
 }
 
+// ========== ASCII PARSER (MODBUS ASCII) ==========
+
 void captureRS485Frame() {
-  // Leggi dati in arrivo da RS485 (master che invia)
-#ifdef ARDUINO
+  // Parser ASCII MODBUS (formato: :AAFFRRRRRRRRLLCC\r\n)
   static String rxBuffer = "";
 
   if (Serial1.available()) {
     char c = Serial1.read();
 
     if (c == ':') {
-      rxBuffer = "";  // Nuovo frame inizia
+      // Inizio nuovo frame
+      rxBuffer = "";
     } else if (c == '\r' || c == '\n') {
+      // Fine frame
       if (rxBuffer.length() > 0) {
-        // Completo frame ricevuto
         SniffedFrame frame;
         frame.timestamp = millis();
         strcpy(frame.rawHex, rxBuffer.c_str());
 
-        // Parse il frame
-        ModbusFrame mf;
-        if (modbus.parseFrame(rxBuffer.c_str(), &mf)) {
-          frame.addr = mf.addr;
-          frame.func = mf.func;
-          frame.reg = mf.reg;
-          frame.val = mf.val;
-          frame.lrc = mf.lrc;
-          frame.lrc_ok = mf.lrc_ok;
+        // Parse il frame ASCII
+        // Formato: AAFFRRRRRRRRLLCC
+        if (rxBuffer.length() == 16) {
+          // Extract bytes
+          uint8_t bytes[8];
+          for (int i = 0; i < 8; i++) {
+            char hex[3] = {rxBuffer[i*2], rxBuffer[i*2+1], 0};
+            bytes[i] = (uint8_t)strtol(hex, NULL, 16);
+          }
+
+          frame.addr = bytes[0];
+          frame.func = bytes[1];
+          frame.reg = (bytes[2] << 8) | bytes[3];
+          frame.val = (bytes[4] << 8) | bytes[5];
+          frame.lrc = bytes[6];
+          frame.lrc_ok = true;  // TODO: verify LRC if needed
 
           addToSnifferBuffer(frame);
 
-          Serial.printf("[SNIFFER] Frame RX: REG=0x%04X(#%d) VAL=0x%04X LRC=%s\n",
-                       frame.reg, frame.reg - 0x0064,
-                       frame.val, frame.lrc_ok ? "OK" : "BAD");
+          Serial.printf("[SNIFFER] ✓ ASCII: Addr=0x%02X Func=%d Reg=0x%04X(#%d) Val=0x%04X LRC=0x%02X\n",
+                       frame.addr, frame.func, frame.reg, frame.reg - 0x0064, frame.val, frame.lrc);
         }
         rxBuffer = "";
       }
-    } else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')) {
-      rxBuffer += c;
+    } else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')) {
+      // Accumula hex characters
+      rxBuffer += (char)toupper(c);
     }
   }
-#endif
 }
 
 // ========== WEB API ==========
@@ -345,8 +353,8 @@ void setup() {
   
   lvgl_port_unlock();
 
-  Serial.println("[BOOT] Sending initial state...");
-  model.setPower(true);
+  // Skip sending commands in SNIFFER MODE
+  // model.setPower(true);
 
   Serial.println("\n[BOOT] Setup complete! ✓\n");
 }
@@ -371,8 +379,8 @@ void loop() {
   //   lastSnifferUpdate = millis();
   // }
 
-  if (millis() - lastLoopPrint > 10000) {
-    Serial.printf("[LOOP] Frames captured: %d\n", snifferCount);
+  if (millis() - lastLoopPrint > 5000) {
+    Serial.printf("[LOOP] Frames captured: %d | Serial1.available()=%d\n", snifferCount, Serial1.available());
     lastLoopPrint = millis();
   }
 

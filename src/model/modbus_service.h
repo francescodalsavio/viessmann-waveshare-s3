@@ -20,7 +20,7 @@
 #ifdef ARDUINO
   #define RS485 Serial1
 #endif
-#define BAUD_RATE 9600
+#define BAUD_RATE 19200
 #define RS485_TX_PIN 44
 #define RS485_RX_PIN 43
 
