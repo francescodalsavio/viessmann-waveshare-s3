@@ -18,6 +18,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <ArduinoOTA.h>
 #include <esp_display_panel.hpp>
 #include <lvgl.h>
 #include "lvgl_v8_port.h"
@@ -39,7 +40,7 @@ const char* WIFI_PASS = "Fastweb10";
 
 // === MODBUS RETRY CONFIGURATION ===
 #define MODBUS_RETRIES    10     // Numero di ripetizioni per registro
-#define MODBUS_RETRY_DELAY 100   // Delay tra ripetizioni (ms)
+#define MODBUS_RETRY_DELAY 50    // Delay tra ripetizioni (ms)
 
 // === Stato ventilconvettore ===
 uint16_t regConfig = 0x4003;  // FREDDO MAX (come master originale) - bit14=FREDDO, bit1-0=FAN MAX
@@ -1174,6 +1175,31 @@ void setup() {
     webServer.begin();
     Serial.println("Web server avviato sulla porta 80");
 
+    // === OTA (Over-The-Air) Update ===
+    ArduinoOTA.setHostname("viessmann-controller");
+    ArduinoOTA.onStart([]() {
+      Serial.println("\n>>> OTA UPDATE STARTED <<<");
+      Serial.println("Spegnimento servizi...");
+    });
+    ArduinoOTA.onEnd([]() {
+      Serial.println("\n>>> OTA UPDATE COMPLETE <<<");
+      Serial.println("Riavvio in corso...");
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("OTA Progress: %u/%u (%u%%)\r", progress, total, (progress / (total / 100)));
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+      Serial.printf("OTA Error: %u - ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    });
+    ArduinoOTA.begin();
+    Serial.println("OTA avviato! Puoi aggiornare con:");
+    Serial.printf("  platformio run -e esp32s3-43b -t upload --upload-port=%s\n", WiFi.localIP().toString().c_str());
+
     // Update WiFi label on display
     if (lvgl_port_lock(100)) {
       char wbuf[64];
@@ -1199,6 +1225,9 @@ void setup() {
 // ============================================================
 
 void loop() {
+  // OTA Update handler (controlla continuamente se c'è un aggiornamento)
+  ArduinoOTA.handle();
+
   // Web server
   webServer.handleClient();
 

@@ -849,3 +849,59 @@ This applies to:
 - Always wrap LVGL calls in `lvgl_port_lock/unlock()`
 - Test display initialization on every port change
 
+---
+
+## OTA (Over-The-Air) Wireless Updates
+
+### Abilitato
+✅ Firmware aggiornabile via WiFi **senza cavo USB**
+
+### Come Aggiornare
+
+#### Metodo 1: Via mDNS Hostname (Consigliato)
+```bash
+cd "/Users/francesco/Documents/Altri progetti/viessmann-waveshare-s3"
+pio run -e esp32s3-43b -t upload --upload-port=viessmann-controller.local
+```
+
+#### Metodo 2: Via Indirizzo IP
+```bash
+pio run -e esp32s3-43b -t upload --upload-port=192.168.1.89
+```
+(Sostituire con l'IP effettivo del dispositivo)
+
+### Workflow Tipico
+
+1. **Modifica un parametro** nel codice (es: `MODBUS_RETRY_DELAY = 50`)
+2. **Lancia il comando OTA** (mDNS o IP)
+3. **Attendi ~34 secondi** per l'upload wireless
+4. **Device riavvia automaticamente** e applica i cambiamenti
+
+### Output Seriale
+
+Al boot, il dispositivo stampa:
+```
+WiFi connesso! IP: 192.168.1.89
+OTA avviato! Puoi aggiornare con:
+  platformio run -e esp32s3-43b -t upload --upload-port=192.168.1.89
+```
+
+### Come Funziona
+- Device si connette a WiFi (SSID: "Molinella")
+- ArduinoOTA library ascolta gli aggiornamenti
+- PlatformIO invia il firmware binario via WiFi
+- Device lo flasha e riavvia automaticamente
+
+### Vantaggi
+✅ **No cavo USB** — aggiorna da qualsiasi luogo  
+✅ **Veloce** — 34 secondi per aggiornamento  
+✅ **Iterazione rapida** — perfetto per testing  
+✅ **Configurazione facile** — modifica parametri on-the-fly (MODBUS_RETRY_DELAY, fan speed, temperature limits, etc.)
+
+### Troubleshooting
+Se `viessmann-controller.local` non risolve:
+1. Controlla l'IP nella seriale
+2. Usa l'IP direttamente: `--upload-port=192.168.1.89`
+3. Assicurati che il device sia connesso a WiFi
+4. Riavvia il device se OTA non risponde
+
