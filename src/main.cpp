@@ -242,7 +242,7 @@ bool isHeating() { return heating; }
 float getTemp()  { return regTemp / 10.0; }
 
 const char* fanName() {
-  const char* names[] = {"auto", "min", "night", "max"};
+  const char* names[] = {"auto", "low", "medium", "high"};
   return names[fanSpeed()];
 }
 
@@ -460,9 +460,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     int fan = -1;
     msg.toLowerCase();
     if (msg == "auto" || msg == "0") fan = 0;
-    else if (msg == "minimo" || msg == "min" || msg == "1") fan = 1;
-    else if (msg == "night" || msg == "notturno" || msg == "2") fan = 2;
-    else if (msg == "massimo" || msg == "max" || msg == "3") fan = 3;
+    else if (msg == "low" || msg == "min" || msg == "minimo" || msg == "1") fan = 1;
+    else if (msg == "medium" || msg == "night" || msg == "notturno" || msg == "2") fan = 2;
+    else if (msg == "high" || msg == "max" || msg == "massimo" || msg == "3") fan = 3;
     else fan = msg.toInt();  // fallback numerico
     if (fan >= 0 && fan <= 3) {
       setFanSpeed(fan);
@@ -513,7 +513,7 @@ void mqttPublishDiscovery() {
       "\"fan_mode_command_topic\":\"viessmann/fan\","
       "\"fan_mode_state_topic\":\"viessmann/status\","
       "\"fan_mode_state_template\":\"{{ value_json.fan }}\","
-      "\"fan_modes\":[\"auto\",\"min\",\"night\",\"max\"],"
+      "\"fan_modes\":[\"auto\",\"low\",\"medium\",\"high\"],"
       "\"power_command_topic\":\"viessmann/power\","
       "\"payload_on\":\"ON\","
       "\"payload_off\":\"OFF\","
