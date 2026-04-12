@@ -1,159 +1,160 @@
-# Pannello Solare Termico - Viessmann Solarcell SPCF 100L
+# Pannelli Solari Termici - Sistema Riscaldamento Casa Molinella
 
-## Panoramica
+**Fonte:** Documentazione ufficiale Viessmann
 
-**Viessmann Solarcell SPCF 100L** - Pannello solare termico per pre-riscaldamento acqua calda sanitaria (ACS). Riduce carico pompa di calore in stagione estiva.
+## Panoramica Sistema Solare
 
-## Specifiche Tecniche
+Casa Molinella dispone di **2 pannelli solari termici** per pre-riscaldamento acqua calda sanitaria (ACS) e riduzione carico pompa di calore:
 
-| Parametro | Valore |
-|-----------|--------|
-| **Modello** | Viessmann Solarcell SPCF 100L |
-| **Tipo** | Collettore piano selettivo |
-| **Potenza certificata** | 35W (EN 12975) |
-| **Superficie utile** | ~1.2 m² (stima) |
-| **Volume fluido** | ~1.5 litri |
-| **Pressione nominale** | 3 bar |
-| **Materiale assorbitore** | Rame selettivo (alto assorbimento) |
-| **Copertura** | Vetro temperato basso-ferro |
-| **Isolamento retro** | Lana minerale 50mm |
-| **Collegamento** | 3/4" (20mm) rame |
-| **Fluido termovettore** | Acqua-glicole (anticongelante) |
-| **Montaggio** | Tetto/Terrazza inclinata 30-45° |
+1. **SPCF 100L** - Collettore piano (installazione principale)
+2. **Vitosol 300-TM** - Pannello sottovuoto ad alta efficienza (integrazione avanzata)
 
-## Funzionamento (Estate)
+## Confronto Pannelli Solari
 
-```
-SOLARE TERMICO (sunny day 800 W/m²)
-       │
-       ├─ Radiazione solare → Assorbitore rame
-       │  
-       ├─ Calore assorbitore: 60-80°C
-       │  
-       ├─ Pompa solare attivata (Δt > 5°C)
-       │
-       ▼
-   Circuito autonomo:
-   Collettore (80°C) → Scambiatore boiler
-                          │
-                          ├─ Pre-riscalda acqua fredda
-                          │
-                          ├─ Riduce carico pompa calore
-                          │
-                          └─ Ritorno collettore (40°C)
-       │
-       ▼
-   Boiler Vitocal 100-S
-   └─ ACS pre-riscaldata da solare
-      (Pompa calore integra solo ΔT rimanente)
-```
+| Aspetto | SPCF 100L (Piano) | Vitosol 300-TM (Sottovuoto) |
+|---------|---|---|
+| **Tipo** | Collettore piano selettivo | Heat pipe sottovuoto |
+| **Tecnologia** | Vetro + rame assorbente | Tubo sottovuoto + Duotec |
+| **Rendimento** | 65-75% | 80-85% |
+| **Assorbitore** | Rame selettivo fisso | Assorbitore orientabile +/-25° |
+| **Isolamento** | Lana minerale 50mm | Sottovuoto (eccellente) |
+| **Protezione gelo** | Glicole manuale (controllato) | Automatica heat pipe (-20°C) |
+| **Surriscaldo** | Manuale (controllato) | ThermProtect brevettato |
+| **Montaggio** | Tetto inclinato (fisso) | Verticale/orizzontale (flessibile) |
+| **Manutenzione** | Annuale, pulizia vetro | Annuale, tubi sostituibili a pressione |
+| **Efficienza bassa stagione** | Media | Superiore |
+| **Costo** | Minore | Maggiore |
 
-## Vantaggi Estivi
-
-✅ **Riduce consumo pompa calore** - Pre-riscalda a 60°C (pompa integra solo ultimi °C)
-✅ **COP + elevato** - Pompa lavora meno (delta termico minore)
-✅ **Acqua calda gratuita** - Energia del sole, zero consumo elettrico
-✅ **Spegnimento pompapompa possibile** - Se solare copre 100% fabbisogno ACS
-✅ **Risparmio estivo significativo** - 30-50% consumi ACS
-
-## Protezione Invernale
-
-In inverno il pannello solare è:
-- **Sospeso** (pompa solare non attiva)
-- **Drenato** se temperature <-5°C prolungate
-- **Rete aria** per evitare ghiaccio
-- **Fluido glicole** contro gelo (-20°C protezione)
-
-## Schema Circuito Solare
+## Sistema Solare Integrato
 
 ```
-Pannello SPCF 100L
-┌───────────────────┐
-│ Assorbitore rame  │ ← Radiazione solare 800 W/m²
-│ Copertura vetro   │
-│ Isolamento 50mm   │
-└────┬──────────┬───┘
-     │          │
-Mandata         Ritorno
-(80°C)          (40°C)
-     │          │
-     ▼          ▲
-  ┌──────────────────┐
-  │   Pompa solare   │ ← Attiva se T_collettore > T_boiler + 5°C
-  │   (3 bar max)    │
-  └──────────────────┘
-     │
-     ▼
-  ┌────────────────────────┐
-  │ Scambiatore di calore  │
-  │ (integrato in boiler)  │
-  │                        │
-  │ IN: 80°C (solare)      │
-  │ OUT: 40°C → collettore │
-  │                        │
-  │ Pre-riscalda ACS       │
-  │ a 60°C senza pompa     │
-  └────────────────────────┘
+CIRCUITO SOLARE AUTONOMO (indipendente da riscaldamento/raffrescamento)
+
+Pannelli Solari (SPCF 100L + Vitosol 300-TM)
+       ↓
+Pompa solare (attiva se T_pannello > T_boiler + 5°C)
+       ↓
+Scambiatore di calore integrato in boiler
+       ↓
+Pre-riscalda ACS da 15°C a 60-70°C
+       ↓
+Boiler (SPCF 100L accumulo termico)
+       ↓
+Pompa di calore (Vitocal 100-S)
+├─ Se ACS già calda (dal sole) → integra solo ΔT minore
+├─ Se ACS fredda (inverno) → riscalda completamente
+└─ Riduce consumo energetico 30-40% in estate
 ```
 
-## Regolazione Automatica
+## Stagionale: Produttività Solare
 
-**Termostato solare integrato**:
-- Attiva pompa quando T_collettore > T_boiler + 5°C
-- Spegne pompa quando Δt < 3°C
-- Protezione antigelo automatica
-- Massima pressione 3 bar
+| Stagione | SPCF 100L | Vitosol 300-TM | Risultato Sistema |
+|----------|---|---|---|
+| **Giugno-Agosto** | 80-100% ACS | 100% ACS | ✅ ACS gratuita dal sole |
+| **Maggio/Settembre** | 40-60% ACS | 80-90% ACS | ✅ ACS prevalentemente solare |
+| **Aprile/Ottobre** | 20-30% ACS | 50-70% ACS | ⚠️ Integrazione pompa calore |
+| **Novembre-Marzo** | 0-10% ACS | 10-30% ACS | ❌ Pompa di calore principale |
 
-## Manutenzione
+## Vantaggi Configurazione Dual-Panel
 
-### Annuale
-- ✅ Controllare isolamento retro (lana minerale integra)
-- ✅ Pulire copertura vetro (pioggia acida, polvere riducono efficienza)
-- ✅ Controllare guarnizioni rame (per perdite)
-- ✅ Verificare pressione sistema (0.5-1.5 bar in funzione)
+✅ **Produttività estesa** - Vitosol 300 compensa bassa stagione
+✅ **Risparmio combinato** - SPCF 100L + Vitosol 300 = 30-50% ACS gratuita annua
+✅ **Ridondanza** - Se un pannello guasto, l'altro continua
+✅ **Flessibilità** - SPCF fisso + Vitosol orientabile per spazi variegati
+✅ **Protezione automtica** - Entrambi hanno protezione surriscaldo
+✅ **Integrazione totale** - Circuito autonomo con pompa solare unica
 
-### Ogni 5 anni
-- 🔄 Controllo fluido termovettore (colore, viscosità)
-- 🔄 Eventuale sostituzione glicole (se degradato)
-- 🔄 Disincrostazione serpentino scambiatore
+## Manutenzione Annuale (Entrambi)
 
-### Invernale
-- ❄️ Drenaggio se temperature <-5°C prolungate
-- ❄️ Protezione contro gelo (fluido glicole sufficiente)
+### SPCF 100L
+- ✅ Pulire vetro (pioggia acida, polvere)
+- ✅ Controllare isolamento retro
+- ✅ Verificare guarnizioni rame
+- ✅ Controllare pressione sistema (0,5-1,5 bar)
 
-## Rendimento Stagionale
+### Vitosol 300-TM
+- ✅ Ispezione visiva vetro tubi
+- ✅ Controllo pressione circuito (0,5-1,5 bar)
+- ✅ Verifica isolamento tubi sottovuoto
+- ✅ Nessuna sedimentazione tubi (fluido heat pipe auto-pulente)
 
-| Stagione | Radiazione | T Collettore | Rendimento | Carico ACS |
-|----------|-----------|--------------|-----------|-----------|
-| **Giugno-Agosto** | Alto (800 W/m²) | 60-80°C | 65-75% | 80-100% |
-| **Maggio/Settembre** | Medio (600 W/m²) | 45-60°C | 55-65% | 40-60% |
-| **Aprile/Ottobre** | Basso (400 W/m²) | 35-50°C | 35-45% | 20-30% |
-| **Novembre-Marzo** | Molto basso (<200 W/m²) | <35°C | 10-20% | 0-10% |
+### Protezione Invernale (Automatica)
+- ❄️ SPCF 100L: Glicole protezione -5°C
+- ❄️ Vitosol 300: Heat pipe protezione -20°C
+- ❄️ Pompa solare: Disattivazione automatica se T < 5°C
 
 ## Risparmio Energetico Annuale
 
-Stima per impianto Casa Molinella:
-- **Consumo ACS senza solare**: ~3000 kWh/anno (pompa calore)
-- **Riduzione solare**: ~600-900 kWh/anno (20-30%)
-- **Risparmio economico**: €120-180/anno @ €0.20/kWh
+**Consumo ACS senza solare**: ~3000 kWh/anno
 
-## Anomalie
+**Con SPCF 100L solo**: 
+- Riduzione: ~600-900 kWh/anno (20-30%)
+- Risparmio: €120-180/anno @ €0.20/kWh
 
-| Sintomo | Causa | Soluzione |
-|---------|-------|-----------|
-| Pompa non attiva | T_collettore < T_boiler + 5°C | Normale (sole debole) |
-| Perdita acqua | Guarnizione rotta | Sostituire O-ring rame |
-| Pressione bassa | Perdita circuito | Reintegrare fluido glicole |
-| Resa bassa | Vetro sporco/opaco | Pulizia con acqua demineralizzata |
-| Ghiaccio collettore | Glicole insufficiente | Verificare concentrazione |
+**Con SPCF 100L + Vitosol 300-TM (configurazione Casa Molinella)**:
+- Riduzione: ~900-1500 kWh/anno (30-50%)
+- Risparmio: €180-300/anno @ €0.20/kWh
+- **Ritorno investimento**: 8-12 anni (Vitosol)
+
+## Anomalie e Soluzioni
+
+| Sintomo | Causa Probabile | Soluzione |
+|---------|---|---|
+| Pompa solare non attiva | T_pannello < T_boiler + 5°C (sole debole) | Normale - sole insufficiente |
+| Perdita acqua | Guarnizione rotta (SPCF) o collegamento (Vitosol) | Contattare tecnico |
+| Pressione bassa | Perdita circuito solare | Reintegrare fluido glicole |
+| Resa bassa (SPCF) | Vetro sporco/offuscato | Pulizia con acqua demineralizzata |
+| Resa bassa (Vitosol) | Tubi sottovuoto offuscati (vapor d'acqua) | Controllare isolamento, possibile ricondensamento |
+| Surriscaldo boiler | ThermProtect (Vitosol) / Regolazione (SPCF) | Normale protezione - verificare setpoint |
+
+## Schema Idraulico Completo
+
+```
+┌─────────────────────────────────────────┐
+│  PANNELLI SOLARI                        │
+│  ├─ SPCF 100L (collettore piano)        │
+│  └─ Vitosol 300-TM (sottovuoto)         │
+└────────┬────────────────────────────────┘
+         │ Tubo mandata (80°C)
+         ▼
+    Pompa solare (attiva se Δt > 5°C)
+         │
+         ▼
+    ┌──────────────────────┐
+    │ BOILER ACCUMULO      │
+    │ SPCF 100L (97L)      │
+    │                      │
+    │ Scambiatore solare   │
+    │ ├─ IN: 80°C (sole)   │
+    │ └─ OUT: 40°C         │
+    │                      │
+    │ Pre-riscalda ACS     │
+    │ a 60°C senza pompa   │
+    └───┬──────────────────┘
+        │
+        ├─ ACS (45-50°C comfort)
+        │  ↓
+        │  Rubinetti / Servizi
+        │
+        └─ Riscaldamento (55°C)
+           ↓
+           Ventilconvettori (2×)
+```
 
 ## Documentazione Ufficiale
 
+### SPCF 100L (Collettore Piano)
 - [Viessmann Solarcell SPCF 100L](https://www.viessmann.it)
 - Manuale impianto: Da richiedere a installatore
 - Certificazione EN 12975 (prestazioni garantite)
 
+### Vitosol 300-TM (Sottovuoto)
+- [Vitosol 300-TM | Viessmann IT](https://www.viessmann.it/it/prodotti/pannello-solare/vitosol-300-tm.html)
+- [Brochure Vitosol 300-TM (PDF)](https://www.viessmann.it/content/dam/vi-brands/IT/BROCHURE/2017/Vitosol_300_TM_brochure_pannelli_solari_Viessmann_09_2017.pdf)
+- Tecnologia ThermProtect brevettata
+
 ---
 
-*Fonte: Viessmann Italia - Prodotti Solari Termici*
+*Fonte: Documentazione ufficiale Viessmann SPCF 100L e Vitosol 300-TM*
+*Configurazione: Casa Molinella - Sistema duale solare*
 *Aggiornamento: Aprile 2026*
