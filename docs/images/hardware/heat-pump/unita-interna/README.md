@@ -215,6 +215,183 @@ Controllo:
 └─ App ViCare (remoto via Vitoconnect)
 ```
 
+## Controllo Temperatura Ambiente - Funzionamento Interno
+
+### Cosa Fai Quando Imposti "22°C" sul Display?
+
+Quando tu usi il Vitotronic 200 per impostare la temperatura ambiente a 22°C, **NON stai impostando la temperatura dell'acqua**, stai impostando il **SETPOINT (target) della stanza**.
+
+```
+TU → Display Vitotronic 200 → Premi [+] fino a 22°C
+       ↓
+VITOTRONIC MEMORIZZA: "Setpoint ambiente = 22°C"
+       ↓
+VITOTRONIC INIZIA LOOP CONTINUO:
+  1. Leggi T_ambiente attuale (da sensore)
+  2. Confronta con setpoint (22°C)
+  3. Calcola errore di temperatura
+  4. Modula pompa di calore per correggere
+  5. Torna al passo 1 (ogni ~10 secondi)
+```
+
+### Sistema PID (Proportional-Integral-Derivative)
+
+Il Vitotronic 200 usa un **algoritmo PID** di controllo automatico:
+
+```
+CICLO DI CONTROLLO (ogni ~10 secondi):
+
+┌─────────────────────────────────────────┐
+│ 1. LETTURA SENSORE                      │
+│    T_ambiente attuale = 21,5°C          │
+├─────────────────────────────────────────┤
+│ 2. CALCOLO ERRORE                       │
+│    Errore = Setpoint − T_attuale        │
+│    Errore = 22°C − 21,5°C = +0,5°C      │
+│    (+positivo = troppo freddo)          │
+├─────────────────────────────────────────┤
+│ 3. AZIONE PROPORZIONALE                 │
+│    Errore +0,5°C → Aumenta compressore  │
+│    di ~5-10% gradualmente               │
+├─────────────────────────────────────────┤
+│ 4. MODULAZIONE INVERTER                 │
+│    Compressore: 40% → 45% → 50%...      │
+│    (accelerazione graduale, NON on/off)  │
+├─────────────────────────────────────────┤
+│ 5. CONTROLLO VALVOLE & POMPE            │
+│    Apri riscaldamento, pompa 80%,       │
+│    fan-coil velocità media              │
+├─────────────────────────────────────────┤
+│ 6. RIPETI LOOP                          │
+│    Ritorna al passo 1                   │
+└─────────────────────────────────────────┘
+```
+
+### Esempio Reale: Scenario Mattina Fredda
+
+**Situazione**: Ore 9:00 AM, casa a 18°C, tu imposti setpoint 22°C
+
+```
+TEMPO: 9:00 AM
+─────────────────────────────────────────
+Tu imposti 22°C sul display Vitotronic
+       ↓
+Lettura: T_ambiente = 18°C (sensore)
+Errore = 22°C − 18°C = +4°C (FREDDO!)
+       ↓
+AZIONE MASSIMA (controllo aggressivo):
+├─ Compressore pompa: 100% potenza
+├─ Valvola riscaldamento: APERTA (55°C)
+├─ Pompa circolazione: 100%
+├─ Fan-coil #1: Velocità 3 (massima)
+└─ Fan-coil #2: Velocità 3 (massima)
+
+═══════════════════════════════════════════
+
+TEMPO: 9:05 AM (5 minuti dopo)
+─────────────────────────────────────────
+Lettura: T_ambiente = 20°C (sale lentamente)
+Errore = 22°C − 20°C = +2°C (ancora freddo)
+       ↓
+AZIONE MEDIA (controllo moderato):
+├─ Compressore pompa: 70% potenza
+├─ Pompa circolazione: 70%
+├─ Fan-coil #1: Velocità 2 (media)
+└─ Fan-coil #2: Velocità 2 (media)
+
+═══════════════════════════════════════════
+
+TEMPO: 9:15 AM (15 minuti dopo)
+─────────────────────────────────────────
+Lettura: T_ambiente = 22°C (raggiunto target!)
+Errore = 22°C − 22°C = 0°C (PERFETTO!)
+       ↓
+AZIONE STANDBY (controllo delicato):
+├─ Compressore pompa: 30% potenza (mantenimento)
+├─ Pompa circolazione: 50% soft
+├─ Fan-coil #1: Velocità 1 (minima, silenzioso)
+└─ Fan-coil #2: Velocità 1 (minima, silenzioso)
+
+═══════════════════════════════════════════
+
+TEMPO: 9:20 AM (qualcuno apre finestra, temp cala)
+─────────────────────────────────────────
+Lettura: T_ambiente = 21,8°C (scende!)
+Errore = 22°C − 21,8°C = +0,2°C (appena freddo)
+       ↓
+AZIONE MINORE (micro-correzione):
+├─ Compressore pompa: 40% potenza
+├─ Fan-coil: Velocità 1 (soft)
+└─ Sistema mantiene 22°C senza sprechi
+```
+
+### Vantaggi del Controllo PID
+
+✅ **Gradualità**: Modulazione continua, non "acceso/spento" (più comfort, meno rumore)
+✅ **Efficienza**: Modula potenza al minimo necessario per mantenere target
+✅ **Stabilità**: Mantiene temperatura stabile ±0,5°C
+✅ **Protezione**: Non accelera pompa inutilmente (durata compressore)
+✅ **Anticipazione**: Intelligenza integrale riduce oscillazioni
+
+### Dove Legge la Temperatura Ambiente?
+
+Il Vitotronic 200 può leggere la temperatura da **3 fonti**:
+
+```
+1️⃣ SENSORE INTERNO (dentro Vitotronic 200)
+   ├─ Se il Vitotronic è montato in salotto
+   └─ Misura temperatura della stanza locale
+   
+2️⃣ SONDA REMOTA WIRELESS (Vitoconnect)
+   ├─ Sensore separato in camera/salotto
+   ├─ Comunica via WiFi con Vitotronic
+   └─ Più accurato (misura dove vivi)
+
+3️⃣ ALGORITMO DINAMICO (default)
+   ├─ Se nessun sensore esterno disponibile
+   ├─ Usa T_mandata e T_ritorno del circuito
+   └─ Stima approssimativa (meno precisa)
+```
+
+### Setpoint Giornaliero vs Notturno
+
+Il Vitotronic 200 **supporta programmazione oraria** per risparmiare energia:
+
+```
+PROGRAMMAZIONE TIPICA:
+
+Ore 06:00-09:00 (mattina)  → Setpoint 22°C (sveglia)
+Ore 09:00-17:00 (giorno)   → Setpoint 20°C (fuori casa)
+Ore 17:00-23:00 (sera)     → Setpoint 22°C (comfort)
+Ore 23:00-06:00 (notte)    → Setpoint 18°C (sonno/risparmio)
+
+Tu imposti questi orari e setpoint sul display una volta,
+poi Vitotronic li segue automaticamente tutti i giorni!
+```
+
+### Comandi Modbus per Setpoint
+
+Se usi un **ESP32 per controllare remoto**:
+
+```cpp
+// Imposta setpoint riscaldamento a 23°C
+REG 101 = 230  // 230 × 0.1 = 23,0°C
+Effetto: Vitotronic alza target da 22°C a 23°C
+
+// Imposta setpoint raffrescamento a 26°C
+REG 102 = 260  // 260 × 0.1 = 26,0°C
+Effetto: Se modalità estate, fan-coil attiva a 26°C
+
+// Leggi temperatura ambiente attuale
+REG 0 = T_mandata (temperatura acqua uscita)
+REG 2 = T_boiler (temperatura accumulo)
+REG 3 = T_esterna (temperatura aria esterna)
+```
+
+---
+
+**Riassunto**: Quando tu imposti 22°C, il Vitotronic 200 **automaticamente** accende/spegne/modula la pompa di calore per raggiungere e mantenere quella temperatura. È un ciclo continuo di misura-confronta-correggi, esattamente come un termostato intelligente.
+
 ## Manutenzione
 
 ### Mensile
