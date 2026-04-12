@@ -13,6 +13,34 @@
 
 ---
 
+## ⚠️ PRIMO SETUP (esegui una sola volta)
+
+### Step 1: Clona il Progetto da GitHub
+
+**Questo è il primo passo!** Devi scaricare il progetto dal repository GitHub:
+
+```bash
+# Vai nella home directory
+cd ~
+
+# Clona il repository da GitHub
+git clone https://github.com/francescodalsavio/viessmann-waveshare-s3.git
+
+# Verifica che la cartella sia stata creata
+ls -la viessmann-waveshare-s3/
+
+# Dovresti vedere:
+# platformio.ini
+# src/
+# docs/
+# README.md
+# etc...
+```
+
+**Fatto!** Ora hai tutto il progetto sul Pi. ✅
+
+---
+
 ## 1️⃣ Installazione PlatformIO su Raspberry Pi
 
 Esegui UNA SOLA VOLTA:
@@ -33,22 +61,9 @@ python3 -m pip install platformio
 
 ---
 
-## 2️⃣ Clona il Progetto sul Pi
+## 2️⃣ Fare OTA Upload da Raspberry Pi
 
-```bash
-# Vai nella home directory
-cd ~
-
-# Clona il repository
-git clone https://github.com/francescodalsavio/viessmann-waveshare-s3.git
-
-# Entra nella cartella
-cd viessmann-waveshare-s3
-```
-
----
-
-## 3️⃣ Fare OTA Upload da Raspberry Pi
+(Dopo aver clonato il progetto dal Step 1)
 
 ### Opzione A: Via IP Address (Raccomandato se la rete cambia spesso)
 
@@ -70,7 +85,7 @@ python3 -m platformio run -e esp32s3-43b -t upload --upload-port=viessmann-contr
 
 ---
 
-## 4️⃣ Output Atteso
+## 3️⃣ Output Atteso
 
 Durante l'upload vedrai:
 
@@ -113,7 +128,7 @@ Se vedi dati, **OTA è riuscito!** ✅
 
 ---
 
-## 🔄 Workflow Veloce per Sviluppo
+## 4️⃣ Workflow Veloce per Sviluppo (dopo primo setup)
 
 ```bash
 # 1. Modifica il codice sul Mac/PC
