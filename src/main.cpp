@@ -981,7 +981,7 @@ void buildUI() {
   lv_obj_set_style_pad_row(card_mode, 8, 0);
 
   lv_obj_t *lbl_mode = lv_label_create(card_mode);
-  lv_label_set_text(lbl_mode, "Stagione");
+  lv_label_set_text(lbl_mode, "Modalità");
   lv_obj_set_style_text_color(lbl_mode, COLOR_DIM, 0);
 
   lv_obj_t *mode_row = lv_obj_create(card_mode);
