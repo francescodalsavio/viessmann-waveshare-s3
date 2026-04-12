@@ -1014,7 +1014,7 @@ void buildUI() {
   lv_obj_set_flex_flow(fan_row, LV_FLEX_FLOW_ROW);
   lv_obj_set_style_pad_column(fan_row, 5, 0);
 
-  const char* fan_labels[] = {"AUTO", "MIN", "NIGHT", "MAX"};
+  const char* fan_labels[] = {"AUTO", "LOW", "MEDIUM", "HIGH"};
   for (int i = 0; i < 4; i++) {
     btn_fan[i] = make_btn(fan_row, fan_labels[i], cb_fan, (void*)(intptr_t)i);
   }
