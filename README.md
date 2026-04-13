@@ -2,6 +2,40 @@
 
 Controllo dei ventilconvettori **Viessmann Energycal Slim W** via **Modbus ASCII RS485** con display touch LVGL 800x480 e WiFi.
 
+---
+
+## Cosa fa questo progetto
+
+**Sostituisce il cronotermostatoi originale** dei ventilconvettori (fan-coil) con un controller custom basato su ESP32-S3 con touch screen.
+
+```
+SISTEMA RISCALDAMENTO/RAFFRESCAMENTO
+├── Pompa di calore Vitocal 100-S  ←  NON controllata da questo progetto
+│   └── Vitotronic 200 (cervello)      (usa Vitoconnect opzionale o Modbus separato)
+│
+└── Ventilconvettori Energycal Slim W  ←  QUESTO PROGETTO
+    └── Questo ESP32 (sostituisce il cronotermostatoi originale)
+        ├── Touch screen 800x480
+        ├── Modbus ASCII RS485
+        └── WiFi (REST API + MQTT + Home Assistant)
+```
+
+### Cosa NON fa
+
+- ❌ **Non controlla la pompa di calore Vitocal 100-S** (quella ha il suo controller Vitotronic 200)
+- ❌ **Non usa Vitoconnect** (il modulo WiFi cloud Viessmann è opzionale e separato)
+- ❌ **Non gestisce la produzione di acqua calda** (ACS, circuiti idraulici, ecc.)
+
+### Cosa FA
+
+- ✅ **Sostituisce il cronotermostatoi originale** dei ventilconvettori
+- ✅ **Controlla ON/OFF, modalità caldo/freddo, velocità ventola, temperatura setpoint**
+- ✅ **Invia comandi Modbus ASCII RS485** ai ventilconvettori (stessi comandi del master originale)
+- ✅ **Touch screen** per controllo locale
+- ✅ **WiFi** per controllo remoto (REST API, MQTT, Home Assistant)
+
+---
+
 ## Status
 
 ✅ **FUNZIONANTE** — Il firmware manda gli stessi comandi del master originale e controlla perfettamente i ventilconvettori.

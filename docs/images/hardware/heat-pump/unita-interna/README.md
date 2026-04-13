@@ -474,80 +474,35 @@ L'ESP32 è un **microcontroller Arduino che TU aggiungi opzionalmente** per:
 - Funzione 6: Scrittura singolo Register (comandi semplici)
 - Funzione 16: Scrittura multipli Registers (comandi complessi)
 
-### Registri Modbus Vitotronic 200 Principali
+### Registri Modbus Vitotronic 200 — Stato Documentazione
 
-```
-=== LETTURE (Holding Registers) ===
+> ⚠️ **Viessmann NON pubblica i registri Modbus ufficialmente.**
+> La tabella seguente viene da **reverse engineering** della community.
+> Verificare sul campo — potrebbero variare tra modelli.
 
-REG 0: T_mandata (°C × 10)
-       Temperatura acqua uscita Vitocal
-       Valore: 550 = 55,0°C
+**Protocollo confermato da community:**
+- Baudrate: **9600**
+- Parity: **Even (E)**
+- Slave address: **1**
 
-REG 1: T_ritorno (°C × 10)
-       Temperatura acqua rientro circuito
+**Registri noti (fonte: Epyon01P/viessmann su GitHub):**
 
-REG 2: T_boiler (°C × 10)
-       Temperatura accumulatore termico (SPCF 100L)
+| Registro | Tipo | Descrizione | Formula |
+|---------|------|-------------|---------|
+| **200** | Lettura | Modalità operativa | valore diretto |
+| **400** | Lettura | Temperatura ritorno | ÷ 10 = °C |
+| **401** | Lettura | Temperatura mandata | ÷ 10 = °C |
+| **405** | Lettura | Temperatura ACS | ÷ 10 = °C |
+| **428** | Lettura | Temperatura esterna | ÷ 10 = °C |
+| **1002** | Scrittura | Setpoint riscaldamento | ÷ 10 = °C |
+| **1003** | Scrittura | Setpoint ACS | ÷ 10 = °C |
 
-REG 3: T_esterna (°C × 10)
-       Temperatura aria esterna (da sensore)
-
-REG 4: T_ACS (°C × 10)
-       Temperatura acqua calda sanitaria
-
-REG 5: Potenza compressore (%)
-       0 = spento, 100 = massimo
-
-REG 6: Stato Modalità
-       0 = Spento
-       1 = Riscaldamento (Pompa Giorno)
-       2 = Riscaldamento (Pompa Notte)
-       3 = Raffrescamento
-       4 = ACS
-       5 = Protezione Antigelo
-
-REG 7: Pressione sistema (bar × 10)
-       Valore: 15 = 1,5 bar
-
-REG 8: Pompa solare attiva? (0=NO, 1=SI)
-
-REG 100: Errore/Allarme (codice)
-         0 = OK
-         1 = Pressione bassa
-         2 = T_mandata troppo alta
-         3 = Flussostato assente
-         ...
-
-=== COMANDI (Scrittibili) ===
-
-REG 101: Setpoint temperatura riscaldamento (°C × 10)
-         Range: 200-550 (20-55°C)
-         Comando: Scrivi 220 per 22°C
-
-REG 102: Setpoint temperatura raffrescamento (°C × 10)
-         Range: 150-280 (15-28°C)
-
-REG 103: Setpoint temperatura ACS (°C × 10)
-         Range: 300-600 (30-60°C)
-         Default: 500 (50°C)
-
-REG 104: Velocità ventola fan-coil (#1)
-         0 = Auto
-         1 = Minima
-         2 = Notte
-         3 = Massima
-
-REG 105: Velocità ventola fan-coil (#2)
-         (stesso formato)
-
-REG 106: Modalità operativa (Comando)
-         1 = Riscaldamento
-         2 = Raffrescamento
-         3 = ACS
-         0 = Standby
-```
+> 📖 Per guida completa al test e altre risorse community:
+> [COLLEGAMENTO-RS485-TEST.md](../COLLEGAMENTO-RS485-TEST.md)
 
 ### Esempio Lettura con ESP32 (Arduino IDE)
+
+> ⚠️ Parity **SERIAL_8E1** (Even) — non SERIAL_8N1!
 
 ```cpp
 #include <ModbusMaster.h>  // Libreria ModbusMaster
@@ -556,7 +511,8 @@ ModbusMaster node;
 
 void setup() {
   Serial.begin(9600);
-  node.begin(1, Serial1);  // Indirizzo 1, UART1
+  Serial1.begin(9600, SERIAL_8E1);  // Even parity obbligatorio!
+  node.begin(1, Serial1);           // Indirizzo 1, UART1
   node.preTransmission(preTransmission);
   node.postTransmission(postTransmission);
 }
@@ -636,6 +592,85 @@ REG 102 = Setpoint raffrescamento (es. 260 = 26°C)
 REG 104 = Velocità ventola fan-coil #1
 REG 106 = Modalità (1=riscaldamento, 2=raffrescamento)
 ```
+
+---
+
+## Test Rapido da Mac con FT232RNL
+
+Prima di usare un ESP32 permanente, puoi **testare la comunicazione Modbus RTU** dalla Vitocal direttamente dal Mac usando il convertitore **FT232RNL** (USB→RS485).
+
+### Problema: connettori diversi
+
+Il FT232RNL ha **morsetti a vite** (A+, B-, GND), la Vitocal ha una **porta RJ45**.  
+Servono solo **€1-2** per adattarli.
+
+### Opzione 1 — Cavo Ethernet Tagliato (€1-2) ✅ Consigliata
+
+Prendi un qualsiasi **cavo ethernet patch** (CAT5/CAT6, 50cm) e taglia un'estremità:
+
+```
+[RJ45] ──────── fili scoperti
+   ↑                  ↑
+Vitocal           Morsetti FT232RNL
+```
+
+Collegamento fili (standard EIA-568B):
+
+| Filo | Colore | Connetti a |
+|------|--------|-----------|
+| Pin 1 | Arancio/Bianco | **A+** sul FT232RNL |
+| Pin 2 | Arancio | **B−** sul FT232RNL |
+| Pin 3 | Verde/Bianco | **GND** sul FT232RNL |
+
+- Costo: ~€1-2
+- Probabilmente **già ce l'hai in casa**
+
+### Opzione 2 — RJ45 Breakout Board (€5-8)
+
+Adattatore professionale con **connettore RJ45 femmina → morsetti a vite** per tutti gli 8 pin:
+
+```
+[RJ45 femmina] → [morsetti a vite pin 1-8]
+```
+
+Cerca su Amazon: `"RJ45 breakout board"` o `"RJ45 terminal block adapter"`
+
+### Schema Completo Collegamento Test
+
+```
+Mac (USB)
+    ↓
+FT232RNL (switch su RS485)
+    ↓ morsetti A+ / B- / GND
+Cavo ethernet tagliato
+    ↓ RJ45
+Vitotronic 200 (porta RS485 sul lato)
+    ↓
+Vitocal 100-S/111-S
+```
+
+### Test da Mac (Terminal)
+
+```bash
+# 1. Verifica porta
+ls /dev/tty.* | grep usb
+# → /dev/tty.usbserial-XXXXX
+
+# 2. Installa pymodbus
+pip install pymodbus
+
+# 3. Test lettura temperatura mandata (REG 0)
+python3 -c "
+from pymodbus.client import ModbusSerialClient
+c = ModbusSerialClient('serial', port='/dev/tty.usbserial-XXXXX', baudrate=9600)
+c.connect()
+r = c.read_holding_registers(0, 1, slave=1)
+print(f'T_mandata: {r.registers[0]/10}°C')
+c.close()
+"
+```
+
+> 💡 **Vedi anche**: [COLLEGAMENTO-RS485-TEST.md](../COLLEGAMENTO-RS485-TEST.md) per guida completa con tutti i test.
 
 ---
 
